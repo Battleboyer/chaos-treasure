@@ -127,7 +127,7 @@ function pickCards(n) {
 }
 
 // ── 游戏状态 ─────────────────────────────────────────────
-let gs = 'playing';
+let gs = 'menu';
 let gtime = 0, frame = 0;
 let shakeT = 0, flashT = 0;
 
@@ -461,6 +461,7 @@ function drawFrame() {
   STARS.forEach(s => { g.globalAlpha=s.a; g.fillStyle='#fff'; g.beginPath(); g.arc(s.x,s.y,s.r,0,TAU); g.fill(); });
   g.globalAlpha = 1;
 
+  if (gs === 'menu') { drawMenu(); return; }
   if (gs === 'playing' || gs === 'levelup') {
     // 燃烧区
     burns.forEach(b => { g.globalAlpha=b.life/b.ml*0.3; g.fillStyle=b.color; g.beginPath(); g.arc(b.x,b.y,b.r,0,TAU); g.fill(); });
@@ -662,6 +663,62 @@ function wrapText(text, x, y, maxW, lineH) {
   if (line) g.fillText(line, x, y);
 }
 
+
+function drawMenu() {
+  const W=GW, H=GH;
+  ctx.fillStyle='#0a0a1a';
+  ctx.fillRect(0,0,W,H);
+  // 星点背景
+  ctx.fillStyle='rgba(255,255,255,0.55)';
+  for(let i=0;i<80;i++){
+    const sx=(Math.sin(i*137.5)*0.5+0.5)*W;
+    const sy=(Math.cos(i*97.3)*0.5+0.5)*H;
+    ctx.beginPath(); ctx.arc(sx,sy,Math.sin(i)*0.6+0.9,0,Math.PI*2); ctx.fill();
+  }
+  // 标题光晕
+  const grd=ctx.createRadialGradient(W/2,H*0.28,10,W/2,H*0.28,180);
+  grd.addColorStop(0,'rgba(80,160,255,0.22)'); grd.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=grd; ctx.fillRect(W/2-180,H*0.28-100,360,200);
+  // 主标题
+  ctx.save();
+  ctx.shadowColor='#4af'; ctx.shadowBlur=36;
+  ctx.fillStyle='#ffffff';
+  ctx.font='bold '+Math.floor(W*0.075)+'px "Microsoft YaHei",sans-serif';
+  ctx.textAlign='center';
+  ctx.fillText('混 沌 夺 宝', W/2, H*0.28);
+  ctx.restore();
+  // 英文副标题
+  ctx.fillStyle='#66aadd';
+  ctx.font=Math.floor(W*0.027)+'px "Microsoft YaHei",sans-serif';
+  ctx.textAlign='center';
+  ctx.fillText('CHAOS  TREASURE', W/2, H*0.28+Math.floor(W*0.042));
+  // 分隔线
+  ctx.strokeStyle='rgba(100,180,255,0.3)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(W/2-130,H*0.41); ctx.lineTo(W/2+130,H*0.41); ctx.stroke();
+  // 玩法说明
+  const tips=['🕹  WASD 移动  ·  空格键 冲刺技能','⚔️  自动攻击怪物  ·  击杀掉落经验球','✨  升级后三选一卡牌  构筑专属流派','💀  坚持 5 分钟  击败 BOSS 完成通关'];
+  ctx.fillStyle='#99bbdd';
+  ctx.font=Math.floor(W*0.022)+'px "Microsoft YaHei",sans-serif';
+  ctx.textAlign='center';
+  tips.forEach((t,i)=>{ ctx.fillText(t, W/2, H*0.50+i*Math.floor(H*0.074)); });
+  // 开始按钮
+  const bw=Math.floor(W*0.28),bh=Math.floor(H*0.088);
+  const bx=W/2-bw/2, by=H*0.80;
+  ctx.save();
+  ctx.shadowColor='#4af'; ctx.shadowBlur=28;
+  const bg=ctx.createLinearGradient(bx,by,bx,by+bh);
+  bg.addColorStop(0,'#2255cc'); bg.addColorStop(1,'#112288');
+  ctx.fillStyle=bg;
+  ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,bh/2); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle='#66aaff'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,bh/2); ctx.stroke();
+  ctx.fillStyle='#fff';
+  ctx.font='bold '+Math.floor(H*0.044)+'px "Microsoft YaHei",sans-serif';
+  ctx.textAlign='center';
+  ctx.fillText('▶  开始游戏', W/2, by+bh*0.65);
+}
+
 function drawEnd() {
   g.fillStyle='rgba(0,0,14,0.92)'; g.fillRect(0,0,GW,GH);
   const win=gs==='win';
@@ -725,8 +782,6 @@ c.addEventListener('touchend', e => {
 },{passive:false});
 
 // ── 主循环 ───────────────────────────────────────────────
-startGame();
-
 let lastTS = 0;
 function loop(ts) {
   const dt = Math.min((ts - lastTS) / 1000, 0.05);
@@ -744,6 +799,7 @@ function waitAndStart() {
     requestAnimationFrame(waitAndStart);
     return;
   }
+  drawFrame(); // 先画一帧菜单
   requestAnimationFrame(ts => { lastTS = ts; requestAnimationFrame(loop); });
 }
 requestAnimationFrame(waitAndStart);
