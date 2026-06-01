@@ -11,7 +11,7 @@ canvas { display:block; }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<canvas id="c" tabindex="0"></canvas>
 <script>
 // ── 画布初始化 ──────────────────────────────────────────
 const c = document.getElementById('c');
@@ -26,7 +26,7 @@ function resize() {
   c.height = GH;
 }
 resize();
-window.addEventListener('resize', resize);
+window.addEventListener('resize', () => { resize(); if(typeof drawFrame==='function') drawFrame(); });
 
 // ── 常量 ────────────────────────────────────────────────
 const TAU = Math.PI * 2;
@@ -735,7 +735,18 @@ function loop(ts) {
   drawFrame();
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(ts => { lastTS = ts; requestAnimationFrame(loop); });
+
+// 等 canvas 真正挂载到 DOM 并获得尺寸后再启动
+function waitAndStart() {
+  resize();
+  c.focus();
+  if (c.clientWidth === 0 || c.clientHeight === 0) {
+    requestAnimationFrame(waitAndStart);
+    return;
+  }
+  requestAnimationFrame(ts => { lastTS = ts; requestAnimationFrame(loop); });
+}
+requestAnimationFrame(waitAndStart);
 </script>
 </body>
 </html>
