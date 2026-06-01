@@ -751,6 +751,7 @@ c.addEventListener('click', e => {
   c.focus();
   const mx = e.offsetX / (c.clientWidth  / GW);
   const my = e.offsetY / (c.clientHeight / GH);
+  if (gs==='menu') { startGame(); return; }
   if (gs==='levelup') {
     const cw=178,ch=242,gap=20,n=lvCards.length,tw=n*(cw+gap)-gap,sx=GW/2-tw/2,sy=GH/2-96;
     lvCards.forEach((cd,i)=>{ const cx=sx+i*(cw+gap); if(mx>=cx&&mx<=cx+cw&&my>=sy&&my<=sy+ch){cd.fn(P);P.cards.push(cd);gs='playing';} });
@@ -772,6 +773,7 @@ c.addEventListener('touchend', e => {
   const rect=c.getBoundingClientRect();
   const t=e.changedTouches[0];
   const mx=(t.clientX-rect.left)/(rect.width/GW), my=(t.clientY-rect.top)/(rect.height/GH);
+  if (gs==='menu') { startGame(); return; }
   if (gs==='levelup') {
     const cw=178,ch=242,gap=20,n=lvCards.length,tw=n*(cw+gap)-gap,sx=GW/2-tw/2,sy=GH/2-96;
     lvCards.forEach((cd,i)=>{ const cx=sx+i*(cw+gap); if(mx>=cx&&mx<=cx+cw&&my>=sy&&my<=sy+ch){cd.fn(P);P.cards.push(cd);gs='playing';} });
