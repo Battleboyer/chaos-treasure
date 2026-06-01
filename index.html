@@ -110,18 +110,24 @@ const HEROES = {
     skill:'青莲剑歌',skillDesc:'向前冲刺，路径造成伤害',
     sCD:3,sDur:0.22,sDist:210,
     hp:90,atk:12,spd:210,aSpd:0.75,
-    draw:drawLibai},
+    drawKey:'drawLibai'},
   daji:{name:'妲己',color:'#f4a',
     skill:'魅惑星球',skillDesc:'发射3颗星球造成AOE',
     sCD:4,sDur:0,sDist:0,
     hp:78,atk:15,spd:195,aSpd:1.05,
-    draw:drawDaji},
+    drawKey:'drawDaji'},
   czj:{name:'程咬金',color:'#fa6',
     skill:'无双旋转',skillDesc:'旋转1.2秒范围伤害并减伤',
     sCD:5,sDur:1.2,sDist:0,
     hp:130,atk:9,spd:178,aSpd:0.65,
-    draw:drawCZJ},
+    drawKey:'drawCZJ'},
 };
+// draw函数在HEROES定义后绑定（避免hoisting问题）
+function bindHeroDraw(){
+  HEROES.libai.draw = drawLibai;
+  HEROES.daji.draw  = drawDaji;
+  HEROES.czj.draw   = drawCZJ;
+}
 const hkeys=['libai','daji','czj'];
 
 // ===== 卡牌 =====
@@ -911,6 +917,7 @@ function loop(ts){
   update(dt);draw();
   requestAnimationFrame(loop);
 }
+bindHeroDraw(); // 所有draw函数已定义完毕，此处绑定
 requestAnimationFrame(ts=>{last=ts;requestAnimationFrame(loop);});
 </script>
 </body>
