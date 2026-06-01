@@ -157,7 +157,7 @@ const CARDS={
 };
 
 // ===================== 游戏状态 =====================
-let gs='menu'; // menu playing levelup win gameover
+let gs='playing'; // playing levelup win gameover
 let FC=0, GT=0, shakeT=0, flashT=0;
 const GDUR=300;
 
@@ -647,7 +647,7 @@ function onTap(mx,my){
     });
   } else if((gs==='win'||gs==='gameover')&&endBR){
     const b=endBR;
-    if(mx>b.x&&mx<b.x+b.w&&my>b.y&&my<b.y+b.h)gs='menu';
+    if(mx>b.x&&mx<b.x+b.w&&my>b.y&&my<b.y+b.h)newGame('libai');
   }
 }
 function onMove(mx,my){
@@ -688,6 +688,7 @@ function loop(ts){
   update(dt);draw();
   requestAnimationFrame(loop);
 }
+newGame('libai'); // 默认李白直接开始，跳过选英雄界面
 requestAnimationFrame(ts=>{last=ts;requestAnimationFrame(loop);});
 </script>
 </body>
