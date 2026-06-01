@@ -102,6 +102,16 @@ const CARDS = [
   { id:'c6', n:'嗜血狂怒', r:'E', i:'🔥', d:'血量越低攻击越高',     fn: p => { p.berserk = true; } },
   { id:'d1', n:'寒冰领域', r:'L', i:'🧊', d:'每12秒冰冻全场3秒',    fn: p => { p.freezeCD = 12; p.freezeT = 12; } },
   { id:'d2', n:'雷神之怒', r:'L', i:'⚡', d:'击杀30%概率闪电链',    fn: p => { p.lightning = true; } },
+  { id:'e1', n:'时间膨胀', r:'L', i:'⏱️', d:'每20秒全场慢动作5秒（敌人速度-70%）',   fn: p => { p.timeWarpCD=20; p.timeWarpT=20; } },
+  { id:'e2', n:'死神镰刀', r:'L', i:'💀', d:'攻击力+50%，但最大HP永久-20%',             fn: p => { p.atk*=1.5; p.mhp*=0.8; p.hp=Math.min(p.hp,p.mhp); } },
+  { id:'e3', n:'幽灵之躯', r:'L', i:'👻', d:'获得永久30%闪避率（随机无效化伤害）',        fn: p => { p.dodge=(p.dodge||0)+0.3; } },
+  { id:'e4', n:'混沌核爆', r:'L', i:'☢️', d:'每次升级触发全屏爆炸（伤害=当前攻击×10）',   fn: p => { p.nukeLv=true; } },
+  { id:'e5', n:'血之契约', r:'L', i:'🩸', d:'每次被击中回复损失HP的30%（越肉越强）',       fn: p => { p.bloodPact=true; } },
+  { id:'e6', n:'镜像分裂', r:'L', i:'🪞', d:'场上始终存在1个镜像（复制你的攻击）',         fn: p => { p.mirror=true; p.mirrorX=p.x-80; p.mirrorY=p.y; } },
+  { id:'e7', n:'量子连发', r:'E', i:'🔫', d:'子弹每次反弹击中新目标（最多弹3次）',         fn: p => { p.bounce=(p.bounce||0)+1; } },
+  { id:'e8', n:'毒雾蔓延', r:'E', i:'☠️', d:'击杀敌人散布毒雾，持续造成范围伤害5秒',       fn: p => { p.poisonCloud=true; } },
+  { id:'e9', n:'时光倒流', r:'L', i:'🔄', d:'HP低于20%时自动触发一次：回满血并无敌3秒',    fn: p => { p.revive=true; } },
+  { id:'f1', n:'弹幕暴走', r:'L', i:'🌪️', d:'子弹数量再+4，且攻速提升30%',                fn: p => { p.shots=Math.min(p.shots+4,11); p.atkCD*=0.7; } },
 ];
 const CARD_W = { C:30, R:24, E:13, L:3 };
 
@@ -140,6 +150,11 @@ function resetPlayer() {
     shieldCD: 0, shieldT: 0, shielded: false,
     freezeCD: 0, freezeT: 0,
     kills: 0, cards: [],
+    timeWarpCD:0, timeWarpT:0, timeWarpActive:false, timeWarpDur:0,
+    dodge:0, nukeLv:false, bloodPact:false,
+    mirror:false, mirrorX:0, mirrorY:0,
+    bounce:0, poisonCloud:false,
+    revive:true, reviveUsed:false,
   };
 }
 
@@ -197,6 +212,9 @@ function killEnemy(e) {
       if (nr && nd < 180) hitEnemy(nr, P.atk * 2);
     }
   }
+  if (P.poisonCloud) {
+    burns.push({x:e.x,y:e.y,r:60,life:5,ml:5,dmg:P.atk*0.2,color:'rgba(80,220,80,0.25)'});
+  }
   e.hp = -1;
 }
 
@@ -240,6 +258,11 @@ function gainExp(v) {
     P.lv++;
     P.expNext = Math.floor(P.expNext * 1.42);
     flashT = 0.3;
+    if (P.nukeLv) {
+      enemies.forEach(e=>hitEnemy(e, P.atk*10));
+      addParticles(GW/2,GH/2,'#f80',50);
+      addFloat(GW/2,GH/2,'☢ 混沌核爆！','#f80');
+    }
     lvCards = pickCards(3);
     gs = 'levelup';
   }
@@ -282,6 +305,19 @@ function update(dt) {
   if (P.freezeCD > 0) { P.freezeT -= dt; if (P.freezeT <= 0) { P.freezeT=P.freezeCD; enemies.forEach(e=>{e.frozenT=3;}); addFloat(P.x,P.y-25,'❄冰冻！','#aef'); addParticles(P.x,P.y,'#aef',22); } }
   // 回血
   if (P.regen) { P.regenT -= dt; if (P.regenT <= 0) { P.regenT=5; P.hp=Math.min(P.mhp,P.hp+5); } }
+  // 时间膨胀
+  if (P.timeWarpCD>0) { P.timeWarpT-=dt; if(P.timeWarpT<=0){P.timeWarpActive=true;P.timeWarpDur=5;P.timeWarpT=P.timeWarpCD;addFloat(GW/2,GH/4,'⏱ 时间膨胀！','#0ff');} }
+  if (P.timeWarpActive) { P.timeWarpDur-=dt; if(P.timeWarpDur<=0){P.timeWarpActive=false;} }
+  // 自动复活
+  if (P.revive && !P.reviveUsed && P.hp < P.mhp*0.2 && P.hp > 0) {
+    P.reviveUsed=true; P.hp=P.mhp; P.invT=3;
+    addFloat(P.x,P.y-30,'⚡时光倒流！','#ffd700');
+    addParticles(P.x,P.y,'#ffd700',30);
+    flashT=0.5;
+  }
+  // 血之契约
+  if (P.bloodPact && P.invT<=0) { /* 在碰撞伤害后回血，逻辑见敌人碰撞处 */ }
+
   // 光环
   if (P.aura) { P.auraT -= dt; if (P.auraT <= 0) { P.auraT=1.5; enemies.forEach(e=>{ if(dist2(P.x,P.y,e.x,e.y)<100) hitEnemy(e,P.atk*0.8); }); addParticles(P.x,P.y,'#4af',7); } }
 
@@ -311,6 +347,16 @@ function update(dt) {
 
   // 自动攻击
   P.atkT -= dt; if (P.atkT <= 0) { shoot(); P.atkT = P.atkCD; }
+
+  // 镜像攻击（同步发射子弹）
+  if (P.mirror && P.atkT === P.atkCD) { // 和玩家同步
+    if (enemies.length>0) {
+      let nr3=null,nd3=Infinity;
+      enemies.forEach(e=>{const d=dist2(P.mirrorX,P.mirrorY,e.x,e.y);if(d<nd3){nd3=d;nr3=e;}});
+      if(nr3&&nd3<300){const a3=Math.atan2(nr3.y-P.mirrorY,nr3.x-P.mirrorX);
+        bullets.push({x:P.mirrorX,y:P.mirrorY,vx:Math.cos(a3)*P.bspd,vy:Math.sin(a3)*P.bspd,dmg:P.atk*0.6,r:4,life:1.6,pierce:P.pierce,explode:false,bounce:0});}
+    }
+  }
 
   // 轨道球
   if (P.orbs > 0) {
@@ -344,7 +390,12 @@ function update(dt) {
       if (dist2(b.x,b.y,e.x,e.y) < b.r+e.r) {
         hitEnemy(e, b.dmg);
         if (b.explode) { addParticles(b.x,b.y,'#f80',8); enemies.forEach(e2=>{ if(e2!==e && dist2(e2.x,e2.y,b.x,b.y)<55) hitEnemy(e2,b.dmg*0.5); }); }
-        if (!b.pierce) hit = true;
+        if (b.bounce>0 && !b.bounced) {
+          let nr2=null,nd2=Infinity;
+          enemies.forEach(e2=>{if(e2!==e&&e2.hp>0){const d=dist2(b.x,b.y,e2.x,e2.y);if(d<nd2){nd2=d;nr2=e2;}}});
+          if(nr2&&nd2<200){const a2=Math.atan2(nr2.y-b.y,nr2.x-b.x);b.vx=Math.cos(a2)*P.bspd;b.vy=Math.sin(a2)*P.bspd;b.bounced=true;b.bounce--;hit=false;}
+          else if(!b.pierce) hit=true;
+        } else if (!b.pierce) hit = true;
       }
     });
     return !hit;
@@ -355,14 +406,22 @@ function update(dt) {
     if (e.hp <= 0) return false;
     if (e.frozenT > 0) { e.frozenT -= dt; return true; }
     const dx=P.x-e.x, dy=P.y-e.y, dl=Math.hypot(dx,dy)||1;
-    e.x += dx/dl*e.spd*dt; e.y += dy/dl*e.spd*dt;
+    const espd = P.timeWarpActive ? e.spd*0.3 : e.spd;
+    e.x += dx/dl*espd*dt; e.y += dy/dl*espd*dt;
     if (e.boss) {
       if      (e.hp < e.mhp*0.3 && e.phase<3) { e.phase=3; e.spd*=1.35; e.color='#f0f'; }
       else if (e.hp < e.mhp*0.6 && e.phase<2) { e.phase=2; e.spd*=1.18; e.color='#f84'; }
     }
     if (e.elite||e.boss) { e.aoeT-=dt; if(e.aoeT<=0){e.aoeT=e.boss?3:5; addParticles(e.x,e.y,e.color,12);} }
     if (dist2(P.x,P.y,e.x,e.y) < P.r+e.r) {
-      if (P.invT<=0 && !P.shielded) P.hp -= e.dmg*dt;
+      if (P.invT<=0 && !P.shielded) {
+        if (P.dodge>0 && Math.random()<P.dodge) { /* 闪避 */ addFloat(P.x,P.y-20,'闪避！','#0f0'); }
+        else {
+          const dmgTaken = e.dmg*dt;
+          P.hp -= dmgTaken;
+          if (P.bloodPact) P.hp = Math.min(P.mhp, P.hp + dmgTaken*0.3);
+        }
+      }
       else if (P.shielded) { P.shielded=false; addFloat(P.x,P.y-25,'护盾！','#4af'); }
     }
     return true;
@@ -476,6 +535,16 @@ function drawFrame() {
     g.beginPath(); g.moveTo(0,-P.r*1.5); g.lineTo(0,P.r*1.5); g.stroke();
     g.beginPath(); g.moveTo(-P.r*0.6,-P.r*0.3); g.lineTo(P.r*0.6,-P.r*0.3); g.stroke();
     g.restore();
+
+    // 镜像
+    if (P.mirror) {
+      P.mirrorX = P.x - 90; P.mirrorY = P.y + 20;
+      g.save(); g.globalAlpha=0.55; g.shadowColor='#f4a'; g.shadowBlur=12;
+      g.fillStyle='#f4a'; g.beginPath(); g.arc(P.mirrorX,P.mirrorY,P.r*0.9,0,TAU); g.fill();
+      g.strokeStyle='#fff'; g.lineWidth=2; g.save(); g.translate(P.mirrorX,P.mirrorY); g.rotate(-frame*0.05);
+      g.beginPath(); g.moveTo(0,-P.r*1.3); g.lineTo(0,P.r*1.3); g.stroke(); g.restore();
+      g.restore();
+    }
 
     // 浮字
     floattexts.forEach(f => {
