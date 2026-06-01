@@ -52,7 +52,6 @@ resize(); window.addEventListener('resize', resize);
 
 // ===== 点击canvas时聚焦（解决iframe键盘问题）=====
 canvas.setAttribute('tabindex','0');
-canvas.addEventListener('click', ()=>canvas.focus());
 canvas.focus();
 
 // ===== 输入 =====
@@ -878,9 +877,32 @@ function handleMove(mx,my){
   }
 }
 
-canvas.addEventListener('click',e=>{const p=getCanvasPos(e);handleClick(p.x,p.y);canvas.focus();});
-canvas.addEventListener('touchend',e=>{e.preventDefault();const p=getCanvasPos(e.changedTouches[0]?{touches:e.changedTouches}:e);handleClick(p.x,p.y);},{passive:false});
-canvas.addEventListener('mousemove',e=>{const p=getCanvasPos(e);handleMove(p.x,p.y);});
+// 统一坐标转换：offsetX/Y 是相对于canvas元素的坐标，最可靠
+function canvasXY(e){
+  // 优先用 offsetX（鼠标事件，不受iframe滚动影响）
+  if(typeof e.offsetX==='number'){
+    return {x:e.offsetX/scale, y:e.offsetY/scale};
+  }
+  // touch事件用 getBoundingClientRect
+  const rect=canvas.getBoundingClientRect();
+  const t=e.changedTouches?e.changedTouches[0]:e.touches[0];
+  return {x:(t.clientX-rect.left)/scale, y:(t.clientY-rect.top)/scale};
+}
+
+canvas.addEventListener('click',e=>{
+  canvas.focus();
+  const {x,y}=canvasXY(e);
+  handleClick(x,y);
+});
+canvas.addEventListener('touchend',e=>{
+  e.preventDefault();
+  const {x,y}=canvasXY(e);
+  handleClick(x,y);
+},{passive:false});
+canvas.addEventListener('mousemove',e=>{
+  const {x,y}=canvasXY(e);
+  handleMove(x,y);
+});
 
 // ===== 游戏循环 =====
 let last=0;
