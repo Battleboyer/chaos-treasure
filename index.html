@@ -1392,7 +1392,11 @@ canvas.addEventListener('mousemove', menuMoveHandler = e => {
   _hoverBtn = (mx > bx && mx < bx + 220 && my > by && my < by + 48) ? 'start' : null;
 });
 
-// 启动
+// 直接开始，默认李白，跳过选将界面
+_selectedHero = 0;
+initGame();
+state = "playing";
+
 requestAnimationFrame(ts => { lastTime = ts; requestAnimationFrame(loop); });
 </script>
 </body>
