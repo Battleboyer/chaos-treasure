@@ -35,22 +35,33 @@ const GDUR = 300;
 // ── 键盘输入 ────────────────────────────────────────────
 const KEY = {};
 let spacePushed = false;
-let spaceDownTime = 0; // 空格按下时刻
-let spaceHeldDuration = 0; // 松开时的蓄力时长（秒）
+let spaceDownTime = 0;
+let spaceHeldDuration = 0;
+let spaceShortTimer = null; // 短按判定计时器
+
 window.addEventListener('keydown', e => {
   KEY[e.code] = true;
   if (e.code === 'Space') {
     e.preventDefault();
-    if (spaceDownTime === 0) spaceDownTime = performance.now(); // 开始计时
+    if (spaceDownTime === 0) {
+      spaceDownTime = performance.now();
+      // 短按：keydown立即触发，无延迟
+      spaceHeldDuration = 0;
+      spacePushed = true;
+    }
   }
 });
 window.addEventListener('keyup', e => {
   KEY[e.code] = false;
   if (e.code === 'Space') {
-    // 计算蓄力时长，存入全局变量供 doSkill 使用
-    spaceHeldDuration = spaceDownTime > 0 ? Math.min((performance.now() - spaceDownTime) / 1000, 1.5) : 0;
+    const held = spaceDownTime > 0 ? (performance.now() - spaceDownTime) / 1000 : 0;
     spaceDownTime = 0;
-    spacePushed = true;
+    if (held >= 0.25) {
+      // 长按：keyup时触发，带蓄力时长
+      spaceHeldDuration = Math.min(held, 1.5);
+      spacePushed = true;
+    }
+    // 短按已在keydown触发，keyup不重复触发
   }
 });
 
@@ -281,7 +292,9 @@ function killEnemy(e) {
 }
 
 function doSkill() {
-  if ((P.curCharges||1) <= 0) return;
+  if (P.dashActive) return;          // 冲刺动画执行中，不允许再次触发
+  if (P.dashCD > 0 && (P.curCharges||1) <= 0) return;  // CD中且没有剩余次数
+  if ((P.curCharges||1) <= 0) return; // 没有剩余次数
   let dx = 0, dy = 0;
   if (KEY.KeyA || KEY.ArrowLeft)  dx = -1;
   if (KEY.KeyD || KEY.ArrowRight) dx =  1;
