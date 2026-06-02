@@ -139,9 +139,10 @@ function pickCards(n) {
     for (let i = 0; i < w; i++) pool.push(cd);
   });
   const res = [], used = new Set();
-  // 前5级保证至少有1张冲刺卡
+  // 10级前且玩家还没有任何冲刺卡时，保证至少1张冲刺卡
+  const ownedDash = P && P.cards ? P.cards.filter(c => DASH_CARDS.has(c.id)).length : 0;
   const dashPool = pool.filter(c => DASH_CARDS.has(c.id));
-  if (dashPool.length > 0 && P && P.lv <= 5) {
+  if (dashPool.length > 0 && P && P.lv <= 10 && ownedDash === 0) {
     const dc = dashPool[Math.floor(Math.random() * dashPool.length)];
     used.add(dc.id);
     res.push(dc);
@@ -197,7 +198,7 @@ function resetPlayer() {
 }
 
 // 列表
-let bullets = [], enemies = [], xporbs = [], particles = [], floattexts = [], burns = [];
+let bullets = [], enemies = [], xporbs = [], particles = [], floattexts = [], burns = [], lightningLines = [];
 let waveTimer = 0, waveInterval = 3, waveNum = 0, eliteTimer = 90, bossSpawned = false;
 
 // 升级
@@ -205,7 +206,7 @@ let lvCards = [], lvHover = -1, endRect = null;
 
 function startGame() {
   resetPlayer();
-  bullets=[]; enemies=[]; xporbs=[]; particles=[]; floattexts=[]; burns=[];
+  bullets=[]; enemies=[]; xporbs=[]; particles=[]; floattexts=[]; burns=[]; lightningLines=[];
   waveTimer=0; waveInterval=3; waveNum=0; eliteTimer=90; bossSpawned=false;
   gtime=0; frame=0; shakeT=0; flashT=0;
   lvCards=[]; lvHover=-1; endRect=null;
@@ -248,11 +249,16 @@ function killEnemy(e) {
     });
   }
   if (P.lightning && Math.random() < 0.3) {
-    let last = e, chain = 3;
+    let last = e, chain = 3, lx = e.x, ly = e.y;
     while (chain--) {
       let nr = null, nd = Infinity;
       enemies.forEach(o => { if (o !== last && o.hp > 0) { const d = dist2(o.x,o.y,last.x,last.y); if (d < nd) { nd=d; nr=o; } } });
-      if (nr && nd < 180) { nr.hp -= P.atk * 2; addParticles(nr.x,nr.y,'#ff0',5); last = nr; }
+      if (nr && nd < 180) {
+        nr.hp -= P.atk * 2;
+        addParticles(nr.x,nr.y,'#ff0',5);
+        lightningLines.push({x1:lx,y1:ly,x2:nr.x,y2:nr.y,life:0.35,ml:0.35});
+        lx = nr.x; ly = nr.y; last = nr;
+      }
     }
   }
   if (P.poisonCloud) {
@@ -501,7 +507,7 @@ function update(dt) {
     if (e.elite||e.boss) { e.aoeT-=dt; if(e.aoeT<=0){e.aoeT=e.boss?3:5; addParticles(e.x,e.y,e.color,12);} }
     if (dist2(P.x,P.y,e.x,e.y) < P.r+e.r) {
       if (P.invT<=0 && !P.shielded && P.dashShieldT<=0) {
-        if (P.dodge>0 && Math.random()<P.dodge) { /* 闪避 */ addFloat(P.x,P.y-20,'闪避！','#0f0'); }
+        if (P.dodge>0 && Math.random()<P.dodge) { /* 闪避 */ addFloat(P.x,P.y-20,'闪避！','#7ff'); }
         else {
           const dmgTaken = e.dmg * 0.5;
           P.hp -= dmgTaken;
@@ -557,11 +563,26 @@ function drawFrame() {
 
     // 经验球
     xporbs.forEach(o => {
-      g.save(); g.shadowColor='#0f0'; g.shadowBlur=8;
-      g.fillStyle='#4f4'; g.beginPath(); g.arc(o.x,o.y,o.r*(0.88+Math.sin(frame*0.25)*0.12),0,TAU); g.fill();
+      g.save(); g.shadowColor='#ffd700'; g.shadowBlur=10;
+      g.fillStyle='#ffd700'; g.beginPath(); g.arc(o.x,o.y,o.r*(0.88+Math.sin(frame*0.25)*0.12),0,TAU); g.fill();
       g.restore();
     });
 
+    // 闪电轨迹
+    lightningLines.forEach(l => {
+      const a = l.life/l.ml;
+      g.save();
+      g.strokeStyle=`rgba(180,220,255,${a})`;
+      g.shadowColor='#aaf'; g.shadowBlur=12;
+      g.lineWidth=2+a*2;
+      g.beginPath();
+      // 锯齿闪电：中间加随机偏移点
+      const mx=(l.x1+l.x2)/2+(Math.random()-0.5)*24;
+      const my=(l.y1+l.y2)/2+(Math.random()-0.5)*24;
+      g.moveTo(l.x1,l.y1); g.lineTo(mx,my); g.lineTo(l.x2,l.y2);
+      g.stroke();
+      g.restore();
+    });
     // 粒子
     particles.forEach(p => { g.globalAlpha=p.life/p.ml; g.fillStyle=p.color; g.beginPath(); g.arc(p.x,p.y,p.r,0,TAU); g.fill(); });
     g.globalAlpha = 1;
