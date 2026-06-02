@@ -136,12 +136,12 @@ let P = {};
 function resetPlayer() {
   P = {
     x: GW/2, y: GH/2, r: 14,
-    hp: 90, mhp: 90,
-    atk: 11, spd: 210, bspd: 310, atkCD: 0.78,
+    hp: 120, mhp: 120,
+    atk: 14, spd: 220, bspd: 320, atkCD: 0.72,
     dashCD: 0, dashMaxCD: 3, dashActive: false, dashT: 0,
     dashDur: 0.22, dashDist: 210, dvx: 0, dvy: 0,
     atkT: 0, invT: 0,
-    lv: 1, exp: 0, expNext: 12, expM: 1,
+    lv: 1, exp: 0, expNext: 8, expM: 1,
     shots: 1, lifesteal: 0, pierce: false, explode: false,
     shadowDash: false, deathBurst: false, berserk: false, lightning: false,
     orbs: 0, orbAngle: 0,
@@ -198,7 +198,7 @@ function killEnemy(e) {
   shakeT = 0.1;
   P.kills++;
   P.hp = Math.min(P.mhp, P.hp + P.lifesteal);
-  const xpv = (e.boss ? 30 : e.elite ? 8 : 1) * P.expM;
+  const xpv = (e.boss ? 40 : e.elite ? 12 : 2) * P.expM;
   xporbs.push({ x: e.x, y: e.y, v: xpv, r: 5, life: 15, delay: 0.25 });
   if (P.deathBurst) {
     enemies.forEach(o => { if (o !== e && dist2(o.x,o.y,e.x,e.y) < 85) hitEnemy(o, P.atk * 1.5); });
@@ -256,7 +256,7 @@ function gainExp(v) {
   if (P.exp >= P.expNext) {
     P.exp -= P.expNext;
     P.lv++;
-    P.expNext = Math.floor(P.expNext * 1.42);
+    P.expNext = Math.floor(P.expNext * 1.28);
     flashT = 0.3;
     if (P.nukeLv) {
       enemies.forEach(e=>hitEnemy(e, P.atk*10));
@@ -275,9 +275,9 @@ function spawnEnemy(elite) {
   else if (side===1) { x=GW+20;     y=rnd(0,GH); }
   else if (side===2) { x=rnd(0,GW); y=GH+20; }
   else               { x=-20;        y=rnd(0,GH); }
-  const hp = elite ? 65 + waveNum*10 : 8 + waveNum*2;
+  const hp = elite ? 50 + waveNum*6 : 6 + waveNum*1.5;
   enemies.push({ x, y, r: elite ? 18 : rnd(9,14), hp, mhp: hp,
-    spd: elite ? 62 : rnd(82,138), dmg: elite ? 14 : 8,
+    spd: elite ? 55 : rnd(55,90), dmg: elite ? 10 : 5,
     color: elite ? '#ff4' : '#f55', elite, boss:false, frozenT:0, aoeT: elite ? 3 : 0 });
 }
 
@@ -372,11 +372,11 @@ function update(dt) {
   waveTimer -= dt;
   if (waveTimer <= 0) {
     waveNum++;
-    const cnt = 2 + Math.floor(waveNum * 0.55);
+    const cnt = 1 + Math.floor(waveNum * 0.35);
     eliteTimer -= waveInterval;
     if (eliteTimer <= 0) { spawnEnemy(true); eliteTimer = 90; }
     for (let i=0; i<cnt; i++) spawnEnemy(false);
-    waveInterval = Math.max(1.1, 3 - waveNum*0.09);
+    waveInterval = Math.max(1.8, 3 - waveNum*0.06);
     waveTimer = waveInterval;
   }
 
