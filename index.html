@@ -35,7 +35,8 @@ const GDUR = 300;
 // ── 键盘输入 ────────────────────────────────────────────
 const KEY = {};
 let spacePushed = false;
-let spaceDownTime = 0; // 空格按下时刻（timestamp）
+let spaceDownTime = 0; // 空格按下时刻
+let spaceHeldDuration = 0; // 松开时的蓄力时长（秒）
 window.addEventListener('keydown', e => {
   KEY[e.code] = true;
   if (e.code === 'Space') {
@@ -46,8 +47,10 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => {
   KEY[e.code] = false;
   if (e.code === 'Space') {
-    spacePushed = true; // 松开才触发冲刺
+    // 计算蓄力时长，存入全局变量供 doSkill 使用
+    spaceHeldDuration = spaceDownTime > 0 ? Math.min((performance.now() - spaceDownTime) / 1000, 1.5) : 0;
     spaceDownTime = 0;
+    spacePushed = true;
   }
 });
 
@@ -372,7 +375,7 @@ function update(dt) {
   shakeT = Math.max(0, shakeT - dt);
   flashT = Math.max(0, flashT - dt);
   if (P.invT  > 0) P.invT  -= dt;
-  if (P.dashCD > 0) P.dashCD -= dt;
+  // dashCD 递减统一在下方护盾逻辑处处理
 
   // 护盾
   if (P.shieldCD > 0) { P.shieldT -= dt; if (P.shieldT <= 0) { P.shielded=true; P.shieldT=P.shieldCD; addFloat(P.x, P.y-25, '护盾！', '#4af'); } }
@@ -400,12 +403,8 @@ function update(dt) {
   // 蓄力 + 冲刺触发
   if (spacePushed) {
     spacePushed = false;
-    if (P.chargedDash) {
-      P.dashChargeHeld = Math.min((performance.now() - (spaceDownTime||performance.now())) / 1000, 1.5);
-    } else {
-      P.dashChargeHeld = 0;
-    }
-    spaceDownTime = 0;
+    P.dashChargeHeld = P.chargedDash ? spaceHeldDuration : 0;
+    spaceHeldDuration = 0;
     doSkill();
   }
 
@@ -419,7 +418,11 @@ function update(dt) {
     if (P.mirror) {
       P.mirrorX += P.dvx * dt; P.mirrorY += P.dvy * dt;
       P.mirrorX = clamp(P.mirrorX, P.r, GW-P.r); P.mirrorY = clamp(P.mirrorY, P.r, GH-P.r);
-      enemies.forEach(e => { if (dist2(P.mirrorX,P.mirrorY,e.x,e.y) < P.r+e.r+8) hitEnemy(e, P.atk*1.2); });
+      const mDashDmg = P.atk * 1.2 * (P.dashChargeMult||1) * (P.dashRange||1);
+      const mDashR = (P.r+8) * (P.dashRange||1);
+      enemies.forEach(e => { if (dist2(P.mirrorX,P.mirrorY,e.x,e.y) < mDashR+e.r) hitEnemy(e, mDashDmg); });
+      // 镜像也留剑气路径
+      if (P.dashTrail) burns.push({x:P.mirrorX,y:P.mirrorY,r:22*(P.dashRange||1),life:5,ml:5,dmg:P.atk*0.2,color:'rgba(180,140,255,0.22)'});
     }
     // 冲刺路径残留剑气（剑气长留）
     if (P.dashTrail) {
@@ -436,14 +439,15 @@ function update(dt) {
       if (P.curCharges <= 0) { /* 由dashCD计时恢复 */ }
     }
   }
-  // 护盾无敌倒计时（破障护盾）
-  if (P.dashShieldT > 0) { P.dashShieldT -= dt; if(P.dashShieldT<0) P.dashShieldT=0; }
-  // 冲刺CD倒计时，归零后恢复冲刺次数
+  // 护盾无敌倒计时
+  if (P.dashShieldT > 0) { P.dashShieldT -= dt; if (P.dashShieldT < 0) P.dashShieldT = 0; }
+  // 冲刺CD倒计时 + 次数恢复（只在CD从>0变为<=0时恢复一次）
   if (P.dashCD > 0) {
-    // dashCD 已在上面365行递减，这里只处理恢复逻辑
-  }
-  if (P.dashCD <= 0 && (P.curCharges||1) < (P.dashCharges||1)) {
-    P.curCharges = P.dashCharges || 1;
+    P.dashCD -= dt;
+    if (P.dashCD <= 0) {
+      P.dashCD = 0;
+      P.curCharges = P.dashCharges || 1; // CD结束，恢复所有冲刺次数
+    }
   }
 
   // 移动
@@ -553,7 +557,9 @@ function update(dt) {
     return o.life > 0;
   });
 
-  // 燃烧区
+  // 闪电轨迹消退
+  lightningLines = lightningLines.filter(l => { l.life -= dt; return l.life > 0; });
+  // 燃烧区（含剑气路径伤害）
   burns = burns.filter(b => {
     b.life -= dt;
     enemies.forEach(e => { if (dist2(e.x,e.y,b.x,b.y)<b.r) hitEnemy(e,b.dmg*dt); });
