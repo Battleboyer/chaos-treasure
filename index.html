@@ -35,11 +35,21 @@ const GDUR = 300;
 // ── 键盘输入 ────────────────────────────────────────────
 const KEY = {};
 let spacePushed = false;
+let spaceDownTime = 0; // 空格按下时刻（timestamp）
 window.addEventListener('keydown', e => {
   KEY[e.code] = true;
-  if (e.code === 'Space') { e.preventDefault(); spacePushed = true; }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (spaceDownTime === 0) spaceDownTime = performance.now(); // 开始计时
+  }
 });
-window.addEventListener('keyup', e => { KEY[e.code] = false; });
+window.addEventListener('keyup', e => {
+  KEY[e.code] = false;
+  if (e.code === 'Space') {
+    spacePushed = true; // 松开才触发冲刺
+    spaceDownTime = 0;
+  }
+});
 
 // 技能按钮（移动端）
 const skillDiv = document.createElement('div');
@@ -387,9 +397,17 @@ function update(dt) {
   if (P.aura) { P.auraT -= dt; if (P.auraT <= 0) { P.auraT=1.5; enemies.forEach(e=>{ if(dist2(P.x,P.y,e.x,e.y)<100) hitEnemy(e,P.atk*0.8); }); addParticles(P.x,P.y,'#4af',7); } }
 
   // 技能
-  // 蓄力计时（长按空格）
-  if (P.chargedDash && KEY.Space) { P.dashChargeHeld = (P.dashChargeHeld||0) + dt; }
-  if (spacePushed) { spacePushed=false; doSkill(); }
+  // 蓄力 + 冲刺触发
+  if (spacePushed) {
+    spacePushed = false;
+    if (P.chargedDash) {
+      P.dashChargeHeld = Math.min((performance.now() - (spaceDownTime||performance.now())) / 1000, 1.5);
+    } else {
+      P.dashChargeHeld = 0;
+    }
+    spaceDownTime = 0;
+    doSkill();
+  }
 
   // 冲刺
   if (P.dashActive) {
@@ -420,9 +438,12 @@ function update(dt) {
   }
   // 护盾无敌倒计时（破障护盾）
   if (P.dashShieldT > 0) { P.dashShieldT -= dt; if(P.dashShieldT<0) P.dashShieldT=0; }
-  // 冲刺次数CD恢复
-  if ((P.curCharges||1) < (P.dashCharges||1) && P.dashCD <= 0) {
-    P.curCharges = P.dashCharges||1;
+  // 冲刺CD倒计时，归零后恢复冲刺次数
+  if (P.dashCD > 0) {
+    // dashCD 已在上面365行递减，这里只处理恢复逻辑
+  }
+  if (P.dashCD <= 0 && (P.curCharges||1) < (P.dashCharges||1)) {
+    P.curCharges = P.dashCharges || 1;
   }
 
   // 移动
@@ -576,9 +597,10 @@ function drawFrame() {
       g.shadowColor='#aaf'; g.shadowBlur=12;
       g.lineWidth=2+a*2;
       g.beginPath();
-      // 锯齿闪电：中间加随机偏移点
-      const mx=(l.x1+l.x2)/2+(Math.random()-0.5)*24;
-      const my=(l.y1+l.y2)/2+(Math.random()-0.5)*24;
+      // 锯齿闪电：用 life 作为种子保持每次渲染位置稳定，随透明度消失
+      const seed = Math.floor(l.life*100);
+      const mx=(l.x1+l.x2)/2+(((seed*137)%100)/100-0.5)*24;
+      const my=(l.y1+l.y2)/2+(((seed*251)%100)/100-0.5)*24;
       g.moveTo(l.x1,l.y1); g.lineTo(mx,my); g.lineTo(l.x2,l.y2);
       g.stroke();
       g.restore();
