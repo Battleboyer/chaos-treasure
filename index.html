@@ -564,8 +564,8 @@ function drawFrame() {
 
   // ── HUD（不受震屏影响）──
   if (gs==='playing' || gs==='levelup') drawHUD();
-  else if (gs==='levelup') drawLevelUp();
-  else if (gs==='win'||gs==='gameover') drawEnd();
+  if (gs==='levelup') drawLevelUp();
+  if (gs==='win' || gs==='gameover') drawEnd();
 
   // 技能按钮
   if (gs==='playing') {
