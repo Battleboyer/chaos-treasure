@@ -574,57 +574,61 @@ function drawFrame() {
 }
 
 function drawHUD() {
-  // ── 顶部HUD背景（44px）
+  // ── 顶部HUD背景
   g.fillStyle='rgba(0,0,20,0.85)'; g.fillRect(0,0,GW,44);
 
-  // HP
+  // HP条
   g.fillStyle='#1a1a1a'; g.fillRect(14,13,180,14);
-  const hpw = Math.max(0,180*(P.hp/P.maxhp));
+  const hpw = Math.max(0, 180 * (P.hp / P.mhp));
   const hpg = g.createLinearGradient(14,0,194,0);
   hpg.addColorStop(0,'#ff4444'); hpg.addColorStop(1,'#ff8866');
   g.fillStyle=hpg; g.fillRect(14,13,hpw,14);
   g.strokeStyle='#555'; g.lineWidth=1; g.strokeRect(14,13,180,14);
   g.fillStyle='#fff'; g.font='bold 10px Microsoft YaHei,sans-serif';
-  g.textAlign='left'; g.fillText('HP  '+Math.ceil(P.hp)+'/'+P.maxhp, 18, 24);
+  g.textAlign='left'; g.fillText('HP  '+Math.ceil(P.hp)+'/'+P.mhp, 18, 24);
 
-  // 等级/经验
-  const xpNeed = P.expNext || 1;
-  const xpFrac = Math.min(P.exp / xpNeed, 1);
+  // 经验条
+  const xpFrac = Math.min(P.exp / (P.expNext||1), 1);
   g.fillStyle='#1a1a1a'; g.fillRect(204,13,160,14);
   const xpg = g.createLinearGradient(204,0,364,0);
   xpg.addColorStop(0,'#4488ff'); xpg.addColorStop(1,'#88ccff');
   g.fillStyle=xpg; g.fillRect(204,13,160*xpFrac,14);
   g.strokeStyle='#555'; g.lineWidth=1; g.strokeRect(204,13,160,14);
   g.fillStyle='#fff'; g.font='bold 10px Microsoft YaHei,sans-serif';
-  g.textAlign='left'; g.fillText('LV'+P.lv+'  XP '+Math.floor(P.exp)+'/'+xpNeed, 208, 24);
+  g.textAlign='left'; g.fillText('LV'+P.lv+'  XP '+Math.floor(P.exp)+'/'+P.expNext, 208, 24);
 
   // 倒计时
   const rem = Math.max(0, GDUR - gtime);
   const mm = String(Math.floor(rem/60)).padStart(2,'0');
-  const ss = String(Math.floor(rem%60)).padStart(2,'0');
+  const ss2 = String(Math.floor(rem%60)).padStart(2,'0');
   g.fillStyle = rem < 30 ? '#ff4444' : '#ffffff';
   g.font = 'bold 20px Microsoft YaHei,sans-serif';
   g.textAlign = 'center';
-  g.fillText(mm+':'+ss, GW/2, 30);
+  g.fillText(mm+':'+ss2, GW/2, 30);
 
   // 击杀数
   g.fillStyle='#aaa'; g.font='12px Microsoft YaHei,sans-serif';
   g.textAlign='right'; g.fillText('击杀 '+P.kills, GW-14, 28);
 
-  // 技能CD
-  const cdFrac = P.dashCD > 0 ? P.dashCD / 3 : 0;
-  g.fillStyle='#1a1a1a'; g.fillRect(GW-84,8,70,12);
+  // 技能CD条
+  const cdFrac = P.dashCD > 0 ? P.dashCD / P.dashMaxCD : 0;
+  g.fillStyle='#1a1a1a'; g.fillRect(GW-130,8,70,12);
   if (cdFrac < 1) {
-    const cdg = g.createLinearGradient(GW-84,0,GW-14,0);
+    const cdg = g.createLinearGradient(GW-130,0,GW-60,0);
     cdg.addColorStop(0,'#8844ff'); cdg.addColorStop(1,'#cc88ff');
-    g.fillStyle=cdg; g.fillRect(GW-84,8,70*(1-cdFrac),12);
+    g.fillStyle=cdg; g.fillRect(GW-130,8,70*(1-cdFrac),12);
   }
-  g.strokeStyle='#555'; g.lineWidth=1; g.strokeRect(GW-84,8,70,12);
+  g.strokeStyle='#555'; g.lineWidth=1; g.strokeRect(GW-130,8,70,12);
+  g.fillStyle='#aaa'; g.font='9px sans-serif'; g.textAlign='center';
+  g.fillText('冲刺', GW-95, 18);
 
-  // ── 时间进度条（y=46，高8px，紧贴HUD下方）──────────────────
+  // 分隔线
+  g.strokeStyle='rgba(80,100,200,0.25)'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(0,44); g.lineTo(GW,44); g.stroke();
+
+  // 时间进度条
   drawTimeBar();
 }
-
 function drawTimeBar() {
   const TOTAL = GDUR;
   const elapsed = gtime;
