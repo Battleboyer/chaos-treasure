@@ -112,6 +112,11 @@ const CARDS = [
   { id:'e8', n:'毒雾蔓延', r:'E', i:'☠️', d:'击杀敌人散布毒雾，持续造成范围伤害5秒',       fn: p => { p.poisonCloud=true; } },
   { id:'e9', n:'时光倒流', r:'L', i:'🔄', d:'HP低于20%时自动触发一次：回满血并无敌3秒',    fn: p => { p.revive=true; } },
   { id:'f1', n:'弹幕暴走', r:'L', i:'🌪️', d:'子弹数量再+4，且攻速提升30%',                fn: p => { p.shots=Math.min(p.shots+4,11); p.atkCD*=0.7; } },
+  { id:'f2', n:'蓄势待发', r:'E', i:'⚡', d:'长按空格蓄力最多1.5s，释放时伤害最高+200%',    fn: p => { p.chargedDash=true; } },
+  { id:'f3', n:'剑域扩张', r:'R', i:'🌊', d:'冲刺伤害范围+40%（可叠加）',                  fn: p => { p.dashRange=(p.dashRange||1)+0.4; } },
+  { id:'f4', n:'疾风双冲', r:'E', i:'💨', d:'冲刺次数+2，可连续冲刺',                      fn: p => { p.dashCharges=(p.dashCharges||1)+2; p.curCharges=Math.min((p.curCharges||1)+2,p.dashCharges); } },
+  { id:'f5', n:'破障护盾', r:'L', i:'🛡️', d:'冲刺后获得2s无敌护盾，免疫所有伤害',          fn: p => { p.dashShield=true; } },
+  { id:'f6', n:'剑气长留', r:'E', i:'🗡️', d:'冲刺路径残留剑气5s，持续灼烧碰撞的敌人',      fn: p => { p.dashTrail=true; } },
 ];
 const CARD_W = { C:30, R:24, E:13, L:3 };
 
@@ -155,6 +160,12 @@ function resetPlayer() {
     mirror:false, mirrorX:0, mirrorY:0,
     bounce:0, poisonCloud:false,
     revive:true, reviveUsed:false,
+    // 新冲刺卡属性
+    chargedDash:false, dashChargeHeld:0,
+    dashRange:1,
+    dashCharges:1, curCharges:1,
+    dashShield:false, dashShieldT:0,
+    dashTrail:false,
   };
 }
 
@@ -224,7 +235,7 @@ function killEnemy(e) {
 }
 
 function doSkill() {
-  if (P.dashCD > 0) return;
+  if ((P.curCharges||1) <= 0) return;
   let dx = 0, dy = 0;
   if (KEY.KeyA || KEY.ArrowLeft)  dx = -1;
   if (KEY.KeyD || KEY.ArrowRight) dx =  1;
@@ -233,12 +244,28 @@ function doSkill() {
   if (!dx && !dy) dy = -1;
   const len = Math.hypot(dx, dy) || 1;
   dx /= len; dy /= len;
+
+  // 蓄力伤害倍率（chargedDash：长按空格最多1.5s，松开时 dashChargeHeld 已由keyup计算）
+  const chargeMult = P.chargedDash ? (1 + Math.min(P.dashChargeHeld||0, 1.5) / 1.5 * 2) : 1;
+  P.dashChargeMult = chargeMult;
+  P.dashChargeHeld = 0;
+
   P.dashActive = true;
   P.dashT = P.dashDur;
   P.dvx = dx * P.dashDist / P.dashDur;
   P.dvy = dy * P.dashDist / P.dashDur;
-  P.dashCD = P.dashMaxCD;
-  if (P.shadowDash) burns.push({ x:P.x, y:P.y, r:50, life:2, ml:2, dmg:P.atk*0.5, color:'rgba(64,170,255,0.3)' });
+
+  // 消耗冲刺次数，全部用完才开始CD
+  P.curCharges = (P.curCharges||1) - 1;
+  if (P.curCharges <= 0) {
+    P.dashCD = P.dashMaxCD;
+  }
+
+  // 冲刺后护盾（破障护盾）
+  if (P.dashShield) { P.dashShieldT = 2; }
+
+  // 残影分身
+  if (P.shadowDash) burns.push({ x:P.x, y:P.y, r:50*( P.dashRange||1), life:2, ml:2, dmg:P.atk*0.5, color:'rgba(64,170,255,0.3)' });
 }
 
 function shoot() {
@@ -327,6 +354,8 @@ function update(dt) {
   if (P.aura) { P.auraT -= dt; if (P.auraT <= 0) { P.auraT=1.5; enemies.forEach(e=>{ if(dist2(P.x,P.y,e.x,e.y)<100) hitEnemy(e,P.atk*0.8); }); addParticles(P.x,P.y,'#4af',7); } }
 
   // 技能
+  // 蓄力计时（长按空格）
+  if (P.chargedDash && KEY.Space) { P.dashChargeHeld = (P.dashChargeHeld||0) + dt; }
   if (spacePushed) { spacePushed=false; doSkill(); }
 
   // 冲刺
@@ -341,7 +370,26 @@ function update(dt) {
       P.mirrorX = clamp(P.mirrorX, P.r, GW-P.r); P.mirrorY = clamp(P.mirrorY, P.r, GH-P.r);
       enemies.forEach(e => { if (dist2(P.mirrorX,P.mirrorY,e.x,e.y) < P.r+e.r+8) hitEnemy(e, P.atk*1.2); });
     }
-    if (P.dashT <= 0) P.dashActive = false;
+    // 冲刺路径残留剑气（剑气长留）
+    if (P.dashTrail) {
+      burns.push({x:P.x, y:P.y, r:28*(P.dashRange||1), life:5, ml:5,
+        dmg:P.atk*0.3, color:'rgba(255,220,80,0.22)'});
+    }
+    // 蓄力伤害加成
+    const dashDmg = P.atk * 2 * (P.dashChargeMult||1) * (P.dashRange||1);
+    enemies.forEach(e => { if (dist2(P.x,P.y,e.x,e.y) < (P.r+e.r+8)*(P.dashRange||1)) hitEnemy(e, dashDmg); });
+    if (P.dashT <= 0) {
+      P.dashActive = false;
+      P.dashChargeMult = 1;
+      // CD恢复后补充冲刺次数
+      if (P.curCharges <= 0) { /* 由dashCD计时恢复 */ }
+    }
+  }
+  // 护盾无敌倒计时（破障护盾）
+  if (P.dashShieldT > 0) { P.dashShieldT -= dt; if(P.dashShieldT<0) P.dashShieldT=0; }
+  // 冲刺次数CD恢复
+  if ((P.curCharges||1) < (P.dashCharges||1) && P.dashCD <= 0) {
+    P.curCharges = P.dashCharges||1;
   }
 
   // 移动
@@ -425,7 +473,7 @@ function update(dt) {
     }
     if (e.elite||e.boss) { e.aoeT-=dt; if(e.aoeT<=0){e.aoeT=e.boss?3:5; addParticles(e.x,e.y,e.color,12);} }
     if (dist2(P.x,P.y,e.x,e.y) < P.r+e.r) {
-      if (P.invT<=0 && !P.shielded) {
+      if (P.invT<=0 && !P.shielded && P.dashShieldT<=0) {
         if (P.dodge>0 && Math.random()<P.dodge) { /* 闪避 */ addFloat(P.x,P.y-20,'闪避！','#0f0'); }
         else {
           const dmgTaken = e.dmg * 0.5;
@@ -582,7 +630,7 @@ function drawFrame() {
   if (gs==='playing') {
     skillDiv.style.display='flex';
     if (P.dashCD>0) { skillDiv.style.borderColor='#444'; skillDiv.style.color='#555'; skillDiv.innerHTML=P.dashCD.toFixed(1)+'s'; }
-    else { skillDiv.style.borderColor='rgba(255,200,50,0.7)'; skillDiv.style.color='#ffc832'; skillDiv.innerHTML='冲刺<br>SPACE'; }
+    else { skillDiv.style.borderColor='rgba(255,200,50,0.7)'; skillDiv.style.color='#ffc832'; skillDiv.innerHTML='冲刺<br>'+(P.dashCharges>1?'●'.repeat(P.curCharges||1)+'<br>':'')+'SPACE'; }
   } else { skillDiv.style.display='none'; }
 }
 
