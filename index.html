@@ -1047,24 +1047,4 @@ c.addEventListener('touchend', e => {
 let lastTS = 0;
 function loop(ts) {
   const dt = Math.min((ts - lastTS) / 1000, 0.05);
-  lastTS = ts;
-  update(dt);
-  drawFrame();
-  requestAnimationFrame(loop);
-}
-
-// 等 canvas 真正挂载到 DOM 并获得尺寸后再启动
-function waitAndStart() {
-  resize();
-  c.focus();
-  if (c.clientWidth === 0 || c.clientHeight === 0) {
-    requestAnimationFrame(waitAndStart);
-    return;
-  }
-  drawFrame(); // 先画一帧菜单
-  requestAnimationFrame(ts => { lastTS = ts; requestAnimationFrame(loop); });
-}
-requestAnimationFrame(waitAndStart);
-</script>
-</body>
-</html>
+  lastTS = t
