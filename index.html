@@ -201,15 +201,20 @@ function killEnemy(e) {
   const xpv = (e.boss ? 40 : e.elite ? 12 : 2) * P.expM;
   xporbs.push({ x: e.x, y: e.y, v: xpv, r: 5, life: 15, delay: 0.25 });
   if (P.deathBurst) {
-    enemies.forEach(o => { if (o !== e && dist2(o.x,o.y,e.x,e.y) < 85) hitEnemy(o, P.atk * 1.5); });
     addParticles(e.x, e.y, '#f80', 18);
+    enemies.forEach(o => {
+      if (o !== e && o.hp > 0 && dist2(o.x,o.y,e.x,e.y) < 85) {
+        o.hp -= P.atk * 1.5; // 直接扣血，不调 hitEnemy，防止递归
+        addParticles(o.x, o.y, '#f80', 6);
+      }
+    });
   }
   if (P.lightning && Math.random() < 0.3) {
     let last = e, chain = 3;
     while (chain--) {
       let nr = null, nd = Infinity;
       enemies.forEach(o => { if (o !== last && o.hp > 0) { const d = dist2(o.x,o.y,last.x,last.y); if (d < nd) { nd=d; nr=o; } } });
-      if (nr && nd < 180) hitEnemy(nr, P.atk * 2);
+      if (nr && nd < 180) { nr.hp -= P.atk * 2; addParticles(nr.x,nr.y,'#ff0',5); last = nr; }
     }
   }
   if (P.poisonCloud) {
@@ -259,7 +264,7 @@ function gainExp(v) {
     P.expNext = Math.floor(P.expNext * 1.28);
     flashT = 0.3;
     if (P.nukeLv) {
-      enemies.forEach(e=>hitEnemy(e, P.atk*10));
+      enemies.forEach(e=>{ e.hp -= P.atk*10; addParticles(e.x,e.y,'#f80',8); });
       addParticles(GW/2,GH/2,'#f80',50);
       addFloat(GW/2,GH/2,'☢ 混沌核爆！','#f80');
     }
