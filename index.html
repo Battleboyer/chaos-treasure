@@ -574,7 +574,97 @@ function drawFrame() {
 }
 
 function drawHUD() {
-  g.fillStyle='rgba(0,0,20,0.7)'; g.fillRect(0,0,GW,44);
+  // ── 顶部背景（HUD + 进度条区，高72px）
+  g.fillStyle='rgba(0,0,20,0.88)'; g.fillRect(0,0,GW,72);
+
+  // ── 时间进度条（y=48，高10px）
+  const TOTAL = GDUR;
+  const elapsed = gtime;
+  const progress = Math.min(elapsed / TOTAL, 1);
+  const barY = 48, barH = 10;
+
+  // 进度条背景轨道
+  g.fillStyle = '#1a1a2e'; g.fillRect(0, barY, GW, barH);
+
+  // 进度条填充（渐变色）
+  const pgrd = g.createLinearGradient(0, 0, GW, 0);
+  pgrd.addColorStop(0,   '#22dd44');
+  pgrd.addColorStop(0.4, '#aadd22');
+  pgrd.addColorStop(0.7, '#ff9900');
+  pgrd.addColorStop(1.0, '#ff2222');
+  g.fillStyle = pgrd;
+  g.fillRect(0, barY, GW * progress, barH);
+
+  // 进度条发光效果
+  if (progress > 0) {
+    const glow = g.createLinearGradient(0, barY, 0, barY + barH);
+    glow.addColorStop(0, 'rgba(255,255,255,0.25)');
+    glow.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = glow;
+    g.fillRect(0, barY, GW * progress, barH / 2);
+  }
+
+  // 进度条边框
+  g.strokeStyle = 'rgba(100,150,255,0.3)'; g.lineWidth = 1;
+  g.strokeRect(0, barY, GW, barH);
+
+  // ── 精英怪标记（90s / 180s / 270s）
+  [[90,'★','精英','#ffcc00','#ffd700'], [180,'★','精英','#ffcc00','#ffd700'], [270,'★','精英','#ffcc00','#ffd700']].forEach(([t, icon, label, ic, lc]) => {
+    const tx = Math.round((t / TOTAL) * GW);
+    const done = elapsed >= t;
+    // 竖线
+    g.strokeStyle = done ? 'rgba(120,120,120,0.4)' : ic;
+    g.lineWidth = done ? 1 : 1.5;
+    g.beginPath(); g.moveTo(tx, barY - 1); g.lineTo(tx, barY + barH + 1); g.stroke();
+    // 图标
+    g.fillStyle = done ? 'rgba(120,120,120,0.5)' : ic;
+    g.font = '10px sans-serif'; g.textAlign = 'center';
+    g.fillText(icon, tx, barY - 3);
+    // 标签
+    g.fillStyle = done ? 'rgba(120,120,120,0.5)' : lc;
+    g.font = '8px Microsoft YaHei,sans-serif';
+    g.fillText(label, tx, barY + barH + 10);
+  });
+
+  // ── BOSS标记（240s）
+  {
+    const tx = Math.round((240 / TOTAL) * GW);
+    const done = elapsed >= 240;
+    // 未到达时高亮背景
+    if (!done) {
+      g.fillStyle = 'rgba(255,40,40,0.12)';
+      g.fillRect(tx - 20, barY, 40, barH);
+    }
+    // 竖线
+    g.strokeStyle = done ? 'rgba(100,80,80,0.4)' : '#ff3333';
+    g.lineWidth = done ? 1 : 2;
+    g.beginPath(); g.moveTo(tx, barY - 3); g.lineTo(tx, barY + barH + 3); g.stroke();
+    // 图标
+    g.fillStyle = done ? 'rgba(100,80,80,0.5)' : '#ff5555';
+    g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
+    g.fillText('☠', tx, barY - 3);
+    // 标签
+    g.fillStyle = done ? 'rgba(100,80,80,0.5)' : '#ff6666';
+    g.font = 'bold 9px Microsoft YaHei,sans-serif';
+    g.fillText('BOSS', tx, barY + barH + 10);
+  }
+
+  // ── 当前进度指示点
+  {
+    const dotX = Math.min(GW * progress, GW - 5);
+    g.beginPath();
+    g.arc(dotX, barY + barH / 2, 5, 0, Math.PI * 2);
+    const dotColor = elapsed >= 240 ? '#ff4444' : elapsed >= 180 ? '#ff8800' : elapsed >= 90 ? '#ffcc00' : '#ffffff';
+    g.fillStyle = dotColor;
+    g.fill();
+    g.strokeStyle = 'rgba(0,0,0,0.8)'; g.lineWidth = 1.5; g.stroke();
+  }
+
+  // ── 分隔线
+  g.strokeStyle = 'rgba(80,100,200,0.25)'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0,44); g.lineTo(GW,44); g.stroke();
+
+  // HP（位置上移到 y=13，还原原始位置）
   // HP
   g.fillStyle='#1a1a1a'; g.fillRect(14,13,195,15);
   const hr = P.hp/P.mhp;
