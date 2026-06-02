@@ -335,6 +335,12 @@ function update(dt) {
     P.x += P.dvx * dt; P.y += P.dvy * dt;
     P.x = clamp(P.x, P.r, GW-P.r); P.y = clamp(P.y, P.r, GH-P.r);
     enemies.forEach(e => { if (dist2(P.x,P.y,e.x,e.y) < P.r+e.r+8) hitEnemy(e, P.atk*2); });
+    // 镜像同步复制冲刺伤害
+    if (P.mirror) {
+      P.mirrorX += P.dvx * dt; P.mirrorY += P.dvy * dt;
+      P.mirrorX = clamp(P.mirrorX, P.r, GW-P.r); P.mirrorY = clamp(P.mirrorY, P.r, GH-P.r);
+      enemies.forEach(e => { if (dist2(P.mirrorX,P.mirrorY,e.x,e.y) < P.r+e.r+8) hitEnemy(e, P.atk*1.2); });
+    }
     if (P.dashT <= 0) P.dashActive = false;
   }
 
@@ -353,13 +359,13 @@ function update(dt) {
   // 自动攻击
   P.atkT -= dt; if (P.atkT <= 0) { shoot(); P.atkT = P.atkCD; }
 
-  // 镜像攻击（同步发射子弹）
-  if (P.mirror && P.atkT === P.atkCD) { // 和玩家同步
+  // 镜像攻击（和玩家自动攻击同步，用 atkT<=0 触发时机对齐）
+  if (P.mirror && P.atkT <= 0) {
     if (enemies.length>0) {
       let nr3=null,nd3=Infinity;
       enemies.forEach(e=>{const d=dist2(P.mirrorX,P.mirrorY,e.x,e.y);if(d<nd3){nd3=d;nr3=e;}});
-      if(nr3&&nd3<300){const a3=Math.atan2(nr3.y-P.mirrorY,nr3.x-P.mirrorX);
-        bullets.push({x:P.mirrorX,y:P.mirrorY,vx:Math.cos(a3)*P.bspd,vy:Math.sin(a3)*P.bspd,dmg:P.atk*0.6,r:4,life:1.6,pierce:P.pierce,explode:false,bounce:0});}
+      if(nr3&&nd3<99999){const a3=Math.atan2(nr3.y-P.mirrorY,nr3.x-P.mirrorX);
+        bullets.push({x:P.mirrorX,y:P.mirrorY,vx:Math.cos(a3)*P.bspd,vy:Math.sin(a3)*P.bspd,dmg:P.atk*0.6,r:4,life:1.6,pierce:P.pierce,explode:P.explode,bounce:P.bounce||0});}
     }
   }
 
