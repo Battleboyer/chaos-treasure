@@ -118,15 +118,42 @@ const CARDS = [
   { id:'f5', n:'破障护盾', r:'L', i:'🛡️', d:'冲刺后获得2s无敌护盾，免疫所有伤害',          fn: p => { p.dashShield=true; } },
   { id:'f6', n:'剑气长留', r:'E', i:'🗡️', d:'冲刺路径残留剑气5s，持续灼烧碰撞的敌人',      fn: p => { p.dashTrail=true; } },
 ];
-const CARD_W = { C:30, R:24, E:13, L:3 };
+const CARD_W = { C:30, R:24, E:16, L:6 };
+// 冲刺卡ID集合
+const DASH_CARDS = new Set(['f2','f3','f4','f5','f6','c1']);
+// 可叠加卡ID集合（可以重复选）
+const STACKABLE = new Set(['a1','a2','a3','a4','a5','a6','b1','b2','b5','b6','f3','f4','c4','e7']);
 
 function pickCards(n) {
+  // 排除已选且不可叠加的卡
+  const ownedOnce = new Set(
+    (P && P.cards ? P.cards : [])
+      .filter(c => !STACKABLE.has(c.id))
+      .map(c => c.id)
+  );
   const pool = [];
-  CARDS.forEach(cd => { for (let i = 0; i < (CARD_W[cd.r]||5); i++) pool.push(cd); });
+  CARDS.forEach(cd => {
+    if (ownedOnce.has(cd.id)) return;
+    // 冲刺卡权重额外×3，增加出现概率
+    const w = (CARD_W[cd.r] || 5) * (DASH_CARDS.has(cd.id) ? 3 : 1);
+    for (let i = 0; i < w; i++) pool.push(cd);
+  });
   const res = [], used = new Set();
+  // 前5级保证至少有1张冲刺卡
+  const dashPool = pool.filter(c => DASH_CARDS.has(c.id));
+  if (dashPool.length > 0 && P && P.lv <= 5) {
+    const dc = dashPool[Math.floor(Math.random() * dashPool.length)];
+    used.add(dc.id);
+    res.push(dc);
+  }
   for (let t = 0; res.length < n && t < 500; t++) {
     const cd = pool[Math.floor(Math.random() * pool.length)];
     if (!used.has(cd.id)) { used.add(cd.id); res.push(cd); }
+  }
+  // 打乱顺序，冲刺卡不总在第一位
+  for (let i = res.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [res[i], res[j]] = [res[j], res[i]];
   }
   return res;
 }
