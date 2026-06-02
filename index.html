@@ -83,6 +83,7 @@ skillDiv.addEventListener('click', () => { spacePushed = true; });
 
 // ── 工具函数 ─────────────────────────────────────────────
 function rnd(a, b) { return a + Math.random() * (b - a); }
+function dist(ax,ay,bx,by){return Math.hypot(ax-bx,ay-by);}
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 function dist2(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
 
@@ -215,7 +216,7 @@ function resetPlayer() {
     // 新冲刺卡属性
     chargedDash:false, dashChargeHeld:0,
     dashRange:1,
-    dashCharges:1, curCharges:1,
+    dashCharges:1, curCharges:1, // curCharges=当前可用次数，dashCharges=最大次数上限
     dashShield:false, dashShieldT:0,
     dashTrail:false,
   };
@@ -266,7 +267,7 @@ function killEnemy(e) {
   if (P.deathBurst) {
     addParticles(e.x, e.y, '#f80', 18);
     enemies.forEach(o => {
-      if (o !== e && o.hp > 0 && dist2(o.x,o.y,e.x,e.y) < 85) {
+      if (o !== e && o.hp > 0 && dist(o.x,o.y,e.x,e.y) < 85) {
         o.hp -= P.atk * 1.5; // 直接扣血，不调 hitEnemy，防止递归
         addParticles(o.x, o.y, '#f80', 6);
       }
@@ -276,7 +277,7 @@ function killEnemy(e) {
     let last = e, chain = 3, lx = e.x, ly = e.y;
     while (chain--) {
       let nr = null, nd = Infinity;
-      enemies.forEach(o => { if (o !== last && o.hp > 0) { const d = dist2(o.x,o.y,last.x,last.y); if (d < nd) { nd=d; nr=o; } } });
+      enemies.forEach(o => { if (o !== last && o.hp > 0) { const d = dist(o.x,o.y,last.x,last.y); if (d < nd) { nd=d; nr=o; } } });
       if (nr && nd < 180) {
         nr.hp -= P.atk * 2;
         addParticles(nr.x,nr.y,'#ff0',5);
@@ -292,9 +293,8 @@ function killEnemy(e) {
 }
 
 function doSkill() {
-  if (P.dashActive) return;          // 冲刺动画执行中，不允许再次触发
-  if (P.dashCD > 0 && (P.curCharges||1) <= 0) return;  // CD中且没有剩余次数
-  if ((P.curCharges||1) <= 0) return; // 没有剩余次数
+  if (P.dashActive) return;           // 冲刺动画执行中禁止触发
+  if (P.curCharges <= 0 || P.dashCD > 0) return; // 没有次数或CD中
   let dx = 0, dy = 0;
   if (KEY.KeyA || KEY.ArrowLeft)  dx = -1;
   if (KEY.KeyD || KEY.ArrowRight) dx =  1;
@@ -305,19 +305,22 @@ function doSkill() {
   dx /= len; dy /= len;
 
   // 蓄力伤害倍率（chargedDash：长按空格最多1.5s，松开时 dashChargeHeld 已由keyup计算）
-  const chargeMult = P.chargedDash ? (1 + Math.min(P.dashChargeHeld||0, 1.5) / 1.5 * 2) : 1;
+  const chargeMult = P.chargedDash ? (1 + Math.min(P.dashChargeHeld||0, 1.5) / 1.5 * 2.0) : 1; // 长按最高3倍伤害
   P.dashChargeMult = chargeMult;
   P.dashChargeHeld = 0;
 
   P.dashActive = true;
   P.dashT = P.dashDur;
+  P.dashHit = new Set(); // 记录本次冲刺已命中的敌人，防止多次伤害
   P.dvx = dx * P.dashDist / P.dashDur;
   P.dvy = dy * P.dashDist / P.dashDur;
 
-  // 消耗冲刺次数，全部用完才开始CD
-  P.curCharges = (P.curCharges||1) - 1;
+  // 消耗冲刺次数
+  P.curCharges = Math.max(0, (P.curCharges || 1) - 1);
+  // 次数耗尽才启动CD；有剩余次数时CD不启动
   if (P.curCharges <= 0) {
     P.dashCD = P.dashMaxCD;
+    P.curCharges = 0; // 确保不为负
   }
 
   // 冲刺后护盾（破障护盾）
@@ -330,7 +333,7 @@ function doSkill() {
 function shoot() {
   if (!enemies.length) return;
   let nr = null, nd = Infinity;
-  enemies.forEach(e => { const d = dist2(P.x,P.y,e.x,e.y); if (d < nd) { nd=d; nr=e; } });
+  enemies.forEach(e => { const d = dist(P.x,P.y,e.x,e.y); if (d < nd) { nd=d; nr=e; } });
   if (!nr || nd > 300) return;
   const base = Math.atan2(nr.y - P.y, nr.x - P.x);
   const n = P.shots;
@@ -410,13 +413,13 @@ function update(dt) {
   if (P.bloodPact && P.invT<=0) { /* 在碰撞伤害后回血，逻辑见敌人碰撞处 */ }
 
   // 光环
-  if (P.aura) { P.auraT -= dt; if (P.auraT <= 0) { P.auraT=1.5; enemies.forEach(e=>{ if(dist2(P.x,P.y,e.x,e.y)<100) hitEnemy(e,P.atk*0.8); }); addParticles(P.x,P.y,'#4af',7); } }
+  if (P.aura) { P.auraT -= dt; if (P.auraT <= 0) { P.auraT=1.5; enemies.forEach(e=>{ if(dist(P.x,P.y,e.x,e.y)<100) hitEnemy(e,P.atk*0.8); }); addParticles(P.x,P.y,'#4af',7); } }
 
   // 技能
   // 蓄力 + 冲刺触发
   if (spacePushed) {
     spacePushed = false;
-    P.dashChargeHeld = P.chargedDash ? spaceHeldDuration : 0;
+    P.dashChargeHeld = spaceHeldDuration; // 始终记录，doSkill里判断是否有卡
     spaceHeldDuration = 0;
     doSkill();
   }
@@ -426,14 +429,18 @@ function update(dt) {
     P.dashT -= dt;
     P.x += P.dvx * dt; P.y += P.dvy * dt;
     P.x = clamp(P.x, P.r, GW-P.r); P.y = clamp(P.y, P.r, GH-P.r);
-    enemies.forEach(e => { if (dist2(P.x,P.y,e.x,e.y) < P.r+e.r+8) hitEnemy(e, P.atk*2); });
+    enemies.forEach(e => {
+      if (!P.dashHit.has(e) && dist(P.x,P.y,e.x,e.y) < P.r+e.r+8) {
+        P.dashHit.add(e); hitEnemy(e, P.atk*2);
+      }
+    });
     // 镜像同步复制冲刺伤害
     if (P.mirror) {
       P.mirrorX += P.dvx * dt; P.mirrorY += P.dvy * dt;
       P.mirrorX = clamp(P.mirrorX, P.r, GW-P.r); P.mirrorY = clamp(P.mirrorY, P.r, GH-P.r);
       const mDashDmg = P.atk * 1.2 * (P.dashChargeMult||1) * (P.dashRange||1);
       const mDashR = (P.r+8) * (P.dashRange||1);
-      enemies.forEach(e => { if (dist2(P.mirrorX,P.mirrorY,e.x,e.y) < mDashR+e.r) hitEnemy(e, mDashDmg); });
+      enemies.forEach(e => { if (dist(P.mirrorX,P.mirrorY,e.x,e.y) < mDashR+e.r) hitEnemy(e, mDashDmg); });
       // 镜像也留剑气路径
       if (P.dashTrail) burns.push({x:P.mirrorX,y:P.mirrorY,r:22*(P.dashRange||1),life:5,ml:5,dmg:P.atk*0.2,color:'rgba(180,140,255,0.22)'});
     }
@@ -444,7 +451,11 @@ function update(dt) {
     }
     // 蓄力伤害加成
     const dashDmg = P.atk * 2 * (P.dashChargeMult||1) * (P.dashRange||1);
-    enemies.forEach(e => { if (dist2(P.x,P.y,e.x,e.y) < (P.r+e.r+8)*(P.dashRange||1)) hitEnemy(e, dashDmg); });
+    enemies.forEach(e => {
+      if (!P.dashHit.has(e) && dist(P.x,P.y,e.x,e.y) < (P.r+e.r+8)*(P.dashRange||1)) {
+        P.dashHit.add(e); hitEnemy(e, dashDmg);
+      }
+    });
     if (P.dashT <= 0) {
       P.dashActive = false;
       P.dashChargeMult = 1;
@@ -482,7 +493,7 @@ function update(dt) {
   if (P.mirror && P.atkT <= 0) {
     if (enemies.length>0) {
       let nr3=null,nd3=Infinity;
-      enemies.forEach(e=>{const d=dist2(P.mirrorX,P.mirrorY,e.x,e.y);if(d<nd3){nd3=d;nr3=e;}});
+      enemies.forEach(e=>{const d=dist(P.mirrorX,P.mirrorY,e.x,e.y);if(d<nd3){nd3=d;nr3=e;}});
       if(nr3&&nd3<99999){const a3=Math.atan2(nr3.y-P.mirrorY,nr3.x-P.mirrorX);
         bullets.push({x:P.mirrorX,y:P.mirrorY,vx:Math.cos(a3)*P.bspd,vy:Math.sin(a3)*P.bspd,dmg:P.atk*0.6,r:4,life:1.6,pierce:P.pierce,explode:P.explode,bounce:P.bounce||0});}
     }
@@ -494,7 +505,7 @@ function update(dt) {
     for (let i=0; i<P.orbs; i++) {
       const a = P.orbAngle + i * TAU/P.orbs;
       const ox = P.x + Math.cos(a)*52, oy = P.y + Math.sin(a)*52;
-      enemies.forEach(e => { if (dist2(ox,oy,e.x,e.y) < 20) hitEnemy(e, P.atk*dt*3); });
+      enemies.forEach(e => { if (dist(ox,oy,e.x,e.y) < 80) hitEnemy(e, P.atk*dt*3); });
     }
   }
 
@@ -517,12 +528,12 @@ function update(dt) {
     let hit = false;
     enemies.forEach(e => {
       if (e.hp<=0) return;
-      if (dist2(b.x,b.y,e.x,e.y) < b.r+e.r) {
+      if (dist(b.x,b.y,e.x,e.y) < b.r+e.r) {
         hitEnemy(e, b.dmg);
-        if (b.explode) { addParticles(b.x,b.y,'#f80',8); enemies.forEach(e2=>{ if(e2!==e && dist2(e2.x,e2.y,b.x,b.y)<55) hitEnemy(e2,b.dmg*0.5); }); }
+        if (b.explode) { addParticles(b.x,b.y,'#f80',8); enemies.forEach(e2=>{ if(e2!==e && dist(e2.x,e2.y,b.x,b.y)<55) hitEnemy(e2,b.dmg*0.5); }); }
         if (b.bounce>0 && !b.bounced) {
           let nr2=null,nd2=Infinity;
-          enemies.forEach(e2=>{if(e2!==e&&e2.hp>0){const d=dist2(b.x,b.y,e2.x,e2.y);if(d<nd2){nd2=d;nr2=e2;}}});
+          enemies.forEach(e2=>{if(e2!==e&&e2.hp>0){const d=dist(b.x,b.y,e2.x,e2.y);if(d<nd2){nd2=d;nr2=e2;}}});
           if(nr2&&nd2<200){const a2=Math.atan2(nr2.y-b.y,nr2.x-b.x);b.vx=Math.cos(a2)*P.bspd;b.vy=Math.sin(a2)*P.bspd;b.bounced=true;b.bounce--;hit=false;}
           else if(!b.pierce) hit=true;
         } else if (!b.pierce) hit = true;
@@ -543,7 +554,7 @@ function update(dt) {
       else if (e.hp < e.mhp*0.6 && e.phase<2) { e.phase=2; e.spd*=1.18; e.color='#f84'; }
     }
     if (e.elite||e.boss) { e.aoeT-=dt; if(e.aoeT<=0){e.aoeT=e.boss?3:5; addParticles(e.x,e.y,e.color,12);} }
-    if (dist2(P.x,P.y,e.x,e.y) < P.r+e.r) {
+    if (dist(P.x,P.y,e.x,e.y) < P.r+e.r) {
       if (P.invT<=0 && !P.shielded && P.dashShieldT<=0) {
         if (P.dodge>0 && Math.random()<P.dodge) { /* 闪避 */ addFloat(P.x,P.y-20,'闪避！','#7ff'); }
         else {
@@ -566,7 +577,7 @@ function update(dt) {
       const dx=P.x-o.x, dy=P.y-o.y, dl=Math.hypot(dx,dy)||1;
       o.x += dx/dl*280*dt; o.y += dy/dl*280*dt;
     }
-    if (dist2(P.x,P.y,o.x,o.y) < P.r+o.r+4) { gainExp(o.v); return false; }
+    if (dist(P.x,P.y,o.x,o.y) < P.r+o.r+14) { gainExp(o.v); return false; }
     return o.life > 0;
   });
 
@@ -575,7 +586,7 @@ function update(dt) {
   // 燃烧区（含剑气路径伤害）
   burns = burns.filter(b => {
     b.life -= dt;
-    enemies.forEach(e => { if (dist2(e.x,e.y,b.x,b.y)<b.r) hitEnemy(e,b.dmg*dt); });
+    enemies.forEach(e => { if (dist(e.x,e.y,b.x,b.y)<b.r) hitEnemy(e,b.dmg*dt); });
     return b.life > 0;
   });
 
@@ -610,17 +621,21 @@ function drawFrame() {
 
     // 闪电轨迹
     lightningLines.forEach(l => {
-      const a = l.life/l.ml;
+      const alpha = Math.max(0, l.life / (l.ml || 0.35));
+      if (alpha <= 0) return;
       g.save();
-      g.strokeStyle=`rgba(180,220,255,${a})`;
-      g.shadowColor='#aaf'; g.shadowBlur=12;
-      g.lineWidth=2+a*2;
+      g.globalAlpha = alpha * 0.9;
+      g.strokeStyle = '#88f';
+      g.lineWidth = 2;
+      g.shadowColor = '#aaf';
+      g.shadowBlur = 8;
       g.beginPath();
-      // 锯齿闪电：用 life 作为种子保持每次渲染位置稳定，随透明度消失
-      const seed = Math.floor(l.life*100);
-      const mx=(l.x1+l.x2)/2+(((seed*137)%100)/100-0.5)*24;
-      const my=(l.y1+l.y2)/2+(((seed*251)%100)/100-0.5)*24;
-      g.moveTo(l.x1,l.y1); g.lineTo(mx,my); g.lineTo(l.x2,l.y2);
+      g.moveTo(l.x1, l.y1);
+      // 用 life 作为种子固定锯齿点，防止每帧跳动
+      const seed = Math.floor(l.life * 100);
+      const mx = (l.x1 + l.x2) / 2 + ((seed * 7919) % 40 - 20);
+      const my = (l.y1 + l.y2) / 2 + ((seed * 6271) % 40 - 20);
+      g.quadraticCurveTo(mx, my, l.x2, l.y2);
       g.stroke();
       g.restore();
     });
