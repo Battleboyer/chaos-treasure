@@ -561,7 +561,7 @@ function drawFrame() {
   g.restore(); // 震屏结束
 
   // ── HUD（不受震屏影响）──
-  if (gs==='playing') drawHUD();
+  if (gs==='playing' || gs==='levelup') drawHUD();
   else if (gs==='levelup') drawLevelUp();
   else if (gs==='win'||gs==='gameover') drawEnd();
 
@@ -574,139 +574,140 @@ function drawFrame() {
 }
 
 function drawHUD() {
-  // ── 顶部背景（HUD + 进度条区，高72px）
-  g.fillStyle='rgba(0,0,20,0.88)'; g.fillRect(0,0,GW,72);
+  // ── 顶部HUD背景（44px）
+  g.fillStyle='rgba(0,0,20,0.85)'; g.fillRect(0,0,GW,44);
 
-  // ── 时间进度条（y=48，高10px）
+  // HP
+  g.fillStyle='#1a1a1a'; g.fillRect(14,13,180,14);
+  const hpw = Math.max(0,180*(P.hp/P.maxhp));
+  const hpg = g.createLinearGradient(14,0,194,0);
+  hpg.addColorStop(0,'#ff4444'); hpg.addColorStop(1,'#ff8866');
+  g.fillStyle=hpg; g.fillRect(14,13,hpw,14);
+  g.strokeStyle='#555'; g.lineWidth=1; g.strokeRect(14,13,180,14);
+  g.fillStyle='#fff'; g.font='bold 10px Microsoft YaHei,sans-serif';
+  g.textAlign='left'; g.fillText('HP  '+Math.ceil(P.hp)+'/'+P.maxhp, 18, 24);
+
+  // 等级/经验
+  const xpNeed = P.expNext || 1;
+  const xpFrac = Math.min(P.exp / xpNeed, 1);
+  g.fillStyle='#1a1a1a'; g.fillRect(204,13,160,14);
+  const xpg = g.createLinearGradient(204,0,364,0);
+  xpg.addColorStop(0,'#4488ff'); xpg.addColorStop(1,'#88ccff');
+  g.fillStyle=xpg; g.fillRect(204,13,160*xpFrac,14);
+  g.strokeStyle='#555'; g.lineWidth=1; g.strokeRect(204,13,160,14);
+  g.fillStyle='#fff'; g.font='bold 10px Microsoft YaHei,sans-serif';
+  g.textAlign='left'; g.fillText('LV'+P.lv+'  XP '+Math.floor(P.exp)+'/'+xpNeed, 208, 24);
+
+  // 倒计时
+  const rem = Math.max(0, GDUR - gtime);
+  const mm = String(Math.floor(rem/60)).padStart(2,'0');
+  const ss = String(Math.floor(rem%60)).padStart(2,'0');
+  g.fillStyle = rem < 30 ? '#ff4444' : '#ffffff';
+  g.font = 'bold 20px Microsoft YaHei,sans-serif';
+  g.textAlign = 'center';
+  g.fillText(mm+':'+ss, GW/2, 30);
+
+  // 击杀数
+  g.fillStyle='#aaa'; g.font='12px Microsoft YaHei,sans-serif';
+  g.textAlign='right'; g.fillText('击杀 '+P.kills, GW-14, 28);
+
+  // 技能CD
+  const cdFrac = P.dashCD > 0 ? P.dashCD / 3 : 0;
+  g.fillStyle='#1a1a1a'; g.fillRect(GW-84,8,70,12);
+  if (cdFrac < 1) {
+    const cdg = g.createLinearGradient(GW-84,0,GW-14,0);
+    cdg.addColorStop(0,'#8844ff'); cdg.addColorStop(1,'#cc88ff');
+    g.fillStyle=cdg; g.fillRect(GW-84,8,70*(1-cdFrac),12);
+  }
+  g.strokeStyle='#555'; g.lineWidth=1; g.strokeRect(GW-84,8,70,12);
+
+  // ── 时间进度条（y=46，高8px，紧贴HUD下方）──────────────────
+  drawTimeBar();
+}
+
+function drawTimeBar() {
   const TOTAL = GDUR;
   const elapsed = gtime;
   const progress = Math.min(elapsed / TOTAL, 1);
-  const barY = 48, barH = 10;
+  const barY = 44, barH = 8;
 
-  // 进度条背景轨道
-  g.fillStyle = '#1a1a2e'; g.fillRect(0, barY, GW, barH);
+  // 轨道背景
+  g.fillStyle = '#0d0d1a'; g.fillRect(0, barY, GW, barH);
 
-  // 进度条填充（渐变色）
-  const pgrd = g.createLinearGradient(0, 0, GW, 0);
-  pgrd.addColorStop(0,   '#22dd44');
-  pgrd.addColorStop(0.4, '#aadd22');
-  pgrd.addColorStop(0.7, '#ff9900');
-  pgrd.addColorStop(1.0, '#ff2222');
-  g.fillStyle = pgrd;
-  g.fillRect(0, barY, GW * progress, barH);
-
-  // 进度条发光效果
+  // 进度填充（渐变）
   if (progress > 0) {
-    const glow = g.createLinearGradient(0, barY, 0, barY + barH);
-    glow.addColorStop(0, 'rgba(255,255,255,0.25)');
-    glow.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = glow;
-    g.fillRect(0, barY, GW * progress, barH / 2);
+    const pgrd = g.createLinearGradient(0, 0, GW, 0);
+    pgrd.addColorStop(0,   '#22dd55');
+    pgrd.addColorStop(0.45,'#bbdd22');
+    pgrd.addColorStop(0.72,'#ff9900');
+    pgrd.addColorStop(1.0, '#ff2222');
+    g.fillStyle = pgrd;
+    g.fillRect(0, barY, GW * progress, barH);
+    // 顶部高光
+    g.fillStyle = 'rgba(255,255,255,0.18)';
+    g.fillRect(0, barY, GW * progress, barH * 0.45);
   }
 
-  // 进度条边框
-  g.strokeStyle = 'rgba(100,150,255,0.3)'; g.lineWidth = 1;
+  // 轨道边框
+  g.strokeStyle = 'rgba(80,100,180,0.35)'; g.lineWidth = 1;
   g.strokeRect(0, barY, GW, barH);
 
-  // ── 精英怪标记（90s / 180s / 270s）
-  [[90,'★','精英','#ffcc00','#ffd700'], [180,'★','精英','#ffcc00','#ffd700'], [270,'★','精英','#ffcc00','#ffd700']].forEach(([t, icon, label, ic, lc]) => {
+  // ── 精英标记 90s / 180s / 270s
+  [90, 180, 270].forEach(t => {
     const tx = Math.round((t / TOTAL) * GW);
     const done = elapsed >= t;
-    // 竖线
-    g.strokeStyle = done ? 'rgba(120,120,120,0.4)' : ic;
+    g.strokeStyle = done ? 'rgba(140,140,140,0.35)' : 'rgba(255,200,0,0.9)';
     g.lineWidth = done ? 1 : 1.5;
-    g.beginPath(); g.moveTo(tx, barY - 1); g.lineTo(tx, barY + barH + 1); g.stroke();
-    // 图标
-    g.fillStyle = done ? 'rgba(120,120,120,0.5)' : ic;
-    g.font = '10px sans-serif'; g.textAlign = 'center';
-    g.fillText(icon, tx, barY - 3);
-    // 标签
-    g.fillStyle = done ? 'rgba(120,120,120,0.5)' : lc;
+    g.beginPath(); g.moveTo(tx, barY); g.lineTo(tx, barY + barH); g.stroke();
+    // 三角图标（向下箭头）
+    g.fillStyle = done ? 'rgba(140,140,140,0.4)' : '#ffcc00';
+    g.beginPath();
+    g.moveTo(tx-5, barY-1);
+    g.lineTo(tx+5, barY-1);
+    g.lineTo(tx,   barY+4);
+    g.closePath(); g.fill();
+    // 文字
+    g.fillStyle = done ? 'rgba(140,140,140,0.4)' : '#ffd700';
     g.font = '8px Microsoft YaHei,sans-serif';
-    g.fillText(label, tx, barY + barH + 10);
+    g.textAlign = 'center';
+    g.fillText('精英', tx, barY + barH + 9);
   });
 
-  // ── BOSS标记（240s）
+  // ── BOSS标记 240s
   {
     const tx = Math.round((240 / TOTAL) * GW);
     const done = elapsed >= 240;
-    // 未到达时高亮背景
+    // 红色高亮背景
     if (!done) {
-      g.fillStyle = 'rgba(255,40,40,0.12)';
-      g.fillRect(tx - 20, barY, 40, barH);
+      g.fillStyle = 'rgba(255,40,40,0.1)';
+      g.fillRect(tx - 22, barY, 44, barH);
     }
-    // 竖线
-    g.strokeStyle = done ? 'rgba(100,80,80,0.4)' : '#ff3333';
+    g.strokeStyle = done ? 'rgba(120,80,80,0.35)' : 'rgba(255,50,50,0.95)';
     g.lineWidth = done ? 1 : 2;
-    g.beginPath(); g.moveTo(tx, barY - 3); g.lineTo(tx, barY + barH + 3); g.stroke();
-    // 图标
-    g.fillStyle = done ? 'rgba(100,80,80,0.5)' : '#ff5555';
-    g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
-    g.fillText('☠', tx, barY - 3);
-    // 标签
-    g.fillStyle = done ? 'rgba(100,80,80,0.5)' : '#ff6666';
-    g.font = 'bold 9px Microsoft YaHei,sans-serif';
-    g.fillText('BOSS', tx, barY + barH + 10);
-  }
-
-  // ── 当前进度指示点
-  {
-    const dotX = Math.min(GW * progress, GW - 5);
+    g.beginPath(); g.moveTo(tx, barY); g.lineTo(tx, barY + barH); g.stroke();
+    // 菱形图标
+    g.fillStyle = done ? 'rgba(120,80,80,0.4)' : '#ff4444';
     g.beginPath();
-    g.arc(dotX, barY + barH / 2, 5, 0, Math.PI * 2);
-    const dotColor = elapsed >= 240 ? '#ff4444' : elapsed >= 180 ? '#ff8800' : elapsed >= 90 ? '#ffcc00' : '#ffffff';
-    g.fillStyle = dotColor;
-    g.fill();
-    g.strokeStyle = 'rgba(0,0,0,0.8)'; g.lineWidth = 1.5; g.stroke();
+    g.moveTo(tx,   barY-5);
+    g.lineTo(tx+5, barY-1);
+    g.lineTo(tx,   barY+4);
+    g.lineTo(tx-5, barY-1);
+    g.closePath(); g.fill();
+    // 文字
+    g.fillStyle = done ? 'rgba(120,80,80,0.4)' : '#ff6666';
+    g.font = 'bold 8px Microsoft YaHei,sans-serif';
+    g.textAlign = 'center';
+    g.fillText('BOSS', tx, barY + barH + 9);
   }
 
-  // ── 分隔线
-  g.strokeStyle = 'rgba(80,100,200,0.25)'; g.lineWidth = 1;
-  g.beginPath(); g.moveTo(0,44); g.lineTo(GW,44); g.stroke();
-
-  // HP（位置上移到 y=13，还原原始位置）
-  // HP
-  g.fillStyle='#1a1a1a'; g.fillRect(14,13,195,15);
-  const hr = P.hp/P.mhp;
-  g.fillStyle = hr>0.5?'#3c3':hr>0.25?'#f90':'#e22'; g.fillRect(14,13,195*hr,15);
-  g.strokeStyle='#333'; g.lineWidth=1; g.strokeRect(14,13,195,15);
-  g.fillStyle='#fff'; g.font='bold 11px Microsoft YaHei,sans-serif'; g.textAlign='left';
-  g.fillText('❤ '+Math.ceil(P.hp)+' / '+Math.ceil(P.mhp), 18, 24);
-  // 经验
-  g.fillStyle='#111'; g.fillRect(GW/2-105,29,210,10);
-  g.fillStyle='#36f'; g.fillRect(GW/2-105,29,210*(P.exp/P.expNext),10);
-  g.strokeStyle='#224'; g.strokeRect(GW/2-105,29,210,10);
-  g.fillStyle='#adf'; g.font='10px Microsoft YaHei,sans-serif'; g.textAlign='center';
-  g.fillText('Lv.'+P.lv+'  '+Math.floor(P.exp)+'/'+Math.floor(P.expNext), GW/2, 38);
-  // 倒计时
-  const rem=Math.max(0,GDUR-gtime), mm=Math.floor(rem/60), ss=Math.floor(rem%60);
-  g.fillStyle=rem<30?'#f44':'#fff'; g.font='bold 22px Microsoft YaHei,sans-serif'; g.textAlign='right';
-  g.fillText(String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0'), GW-14, 32);
-  g.fillStyle='#fa0'; g.font='12px Microsoft YaHei,sans-serif';
-  g.fillText('击杀: '+P.kills, GW-14, 44);
-  // 已选卡图标
-  P.cards.slice(-7).forEach((cd,i) => {
-    const cx=14+i*34, cy=GH-44;
-    g.fillStyle=RC[cd.r]+'22'; g.fillRect(cx,cy,28,28);
-    g.strokeStyle=RC[cd.r]; g.lineWidth=1.5; g.strokeRect(cx,cy,28,28);
-    g.font='15px sans-serif'; g.textAlign='center'; g.fillText(cd.i, cx+14, cy+20);
-  });
-  // 技能CD圆
-  const cx=GW/2, cy=GH-42, cr=19;
-  g.fillStyle='rgba(0,0,0,0.55)'; g.beginPath(); g.arc(cx,cy,cr,0,TAU); g.fill();
-  g.strokeStyle='#4af'; g.lineWidth=3; g.beginPath(); g.arc(cx,cy,cr,0,TAU); g.stroke();
-  if (P.dashCD>0) {
-    const ratio=P.dashCD/P.dashMaxCD;
-    g.fillStyle='rgba(0,0,0,0.5)'; g.beginPath(); g.moveTo(cx,cy);
-    g.arc(cx,cy,cr,-Math.PI/2,-Math.PI/2+ratio*TAU); g.closePath(); g.fill();
-    g.fillStyle='#888'; g.font='9px Microsoft YaHei,sans-serif'; g.textAlign='center';
-    g.fillText(P.dashCD.toFixed(1), cx, cy+4);
-  } else {
-    g.fillStyle='#fff'; g.font='bold 9px Microsoft YaHei,sans-serif'; g.textAlign='center';
-    g.fillText('冲刺', cx, cy+4);
-  }
+  // ── 当前位置指示点
+  const dotX = Math.max(5, Math.min(GW - 5, GW * progress));
+  g.beginPath();
+  g.arc(dotX, barY + barH/2, 4, 0, Math.PI * 2);
+  g.fillStyle = elapsed >= 240 ? '#ff5555' : elapsed >= 180 ? '#ff9900' : elapsed >= 90 ? '#ffdd00' : '#ffffff';
+  g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.7)'; g.lineWidth = 1.5; g.stroke();
 }
-
 function drawLevelUp() {
   g.fillStyle='rgba(0,0,18,0.85)'; g.fillRect(0,0,GW,GH);
   g.fillStyle='#ffd700'; g.font='bold 26px Microsoft YaHei,sans-serif'; g.textAlign='center';
