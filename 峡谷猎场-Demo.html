@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>峡谷猎场 · 试玩Demo</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;display:flex;align-items:center;justify-content:center;
+  height:100vh;overflow:hidden;font-family:'PingFang SC','Microsoft YaHei',sans-serif}
+canvas{display:block;cursor:crosshair}
+#ui{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none}
+#hud{position:absolute;top:0;left:0;right:0;background:rgba(10,10,15,.85);
+  border-bottom:1px solid rgba(0,212,255,.2);padding:.5rem 1rem;
+  display:flex;align-items:center;gap:1.5rem;pointer-events:none}
+.hud-item{display:flex;flex-direction:column;align-items:center;gap:.1rem}
+.hud-label{font-size:.6rem;color:#556;letter-spacing:.1em;text-transform:uppercase}
+.hud-val{font-size:1rem;font-weight:800}
+#timer{font-size:1.4rem;font-weight:900;color:#00ff88;text-shadow:0 0 10px #00ff88;
+  margin-left:auto}
+#msg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  text-align:center;pointer-events:auto}
+#msg h2{font-size:2.5rem;font-weight:900;color:#00ff88;text-shadow:0 0 20px #00ff88;margin-bottom:1rem}
+#msg p{color:#8892a4;font-size:1rem;margin-bottom:1.5rem}
+#msg button{background:rgba(0,255,136,.15);border:1px solid #00ff88;color:#00ff88;
+  padding:.7rem 2rem;font-size:1rem;cursor:pointer;border-radius:3px;font-weight:700;
+  transition:all .2s}
+#msg button:hover{background:rgba(0,255,136,.3);box-shadow:0 0 15px rgba(0,255,136,.4)}
+#skillbar{position:absolute;bottom:1.5rem;left:50%;transform:translateX(-50%);
+  display:flex;gap:1rem;align-items:center}
+.skill-btn{width:3.5rem;height:3.5rem;border-radius:50%;border:2px solid rgba(0,212,255,.4);
+  background:rgba(0,212,255,.1);color:#00d4ff;font-size:.65rem;font-weight:700;
+  cursor:pointer;pointer-events:auto;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:.15rem;text-align:center;
+  transition:all .2s;position:relative;overflow:hidden}
+.skill-btn:hover{border-color:#00d4ff;background:rgba(0,212,255,.25)}
+.skill-btn.active{border-color:#00ff88;background:rgba(0,255,136,.2);color:#00ff88}
+.skill-btn .cd-overlay{position:absolute;inset:0;border-radius:50%;
+  background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;
+  font-size:.75rem;color:#fff;font-weight:900}
+#ranking{position:absolute;right:1rem;top:4rem;background:rgba(10,10,15,.9);
+  border:1px solid rgba(0,212,255,.2);border-radius:4px;padding:.8rem;min-width:140px;
+  pointer-events:none}
+#ranking h4{font-size:.65rem;color:#00d4ff;letter-spacing:.1em;margin-bottom:.5rem}
+.rank-item{display:flex;justify-content:space-between;font-size:.75rem;
+  padding:.2rem 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.rank-item:last-child{border-bottom:none}
+#combo{position:absolute;top:6rem;left:50%;transform:translateX(-50%);
+  font-size:1.8rem;font-weight:900;color:#ffd700;text-shadow:0 0 15px #ffd700;
+  opacity:0;transition:opacity .3s;text-align:center}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="hud">
+    <div class="hud-item">
+      <span class="hud-label">英雄</span>
+      <span class="hud-val" id="heroName" style="color:#00ff88">后羿</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">战魂币</span>
+      <span class="hud-val" id="coins" style="color:#ffd700">0</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">连杀</span>
+      <span class="hud-val" id="comboVal" style="color:#ff00ff">×1</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">子弹</span>
+      <span class="hud-val" id="bullets" style="color:#00d4ff">100</span>
+    </div>
+    <div id="timer">05:00</div>
+  </div>
+  <div id="combo"></div>
+  <div id="ranking">
+    <h4>🏆 实时排行</h4>
+    <div id="rankList"></div>
+  </div>
+  <div id="skillbar">
+    <div class="skill-btn active" id="hero1" onclick="selectHero(0)">
+      <span>🏹</span><span>后羿</span>
+    </div>
+    <div class="skill-btn" id="hero2" onclick="selectHero(1)">
+      <span>⭐</span><span>妲己</span>
+    </div>
+    <div class="skill-btn" id="hero3" onclick="selectHero(2)">
+      <span>📖</span><span>诸葛</span>
+    </div>
+    <div style="width:1px;height:3rem;background:rgba(255,255,255,.1)"></div>
+    <div class="skill-btn" id="skillUlt" onclick="useUlt()">
+      <span>💥</span><span>大招</span>
+      <div class="cd-overlay" id="ultCD">0</div>
+    </div>
+  </div>
+  <div id="msg" style="display:none"></div>
+</div>
+
+<script>
+const C = document.getElementById('c');
+const g = C.getContext('2d');
+let W, H;
+
+function resize(){
+  const sw = window.innerWidth, sh = window.innerHeight;
+  const aspect = 16/9;
+  if(sw/sh > aspect){ H = sh; W = H*aspect; }
+  else{ W = sw; H = W/aspect; }
+  C.width = W; C.height = H;
+}
+resize();
+window.addEventListener('resize', ()=>{ resize(); });
+
+// ─── 游戏状态 ───
+let state = 'menu'; // menu / playing / over
+let coins = 0, bullets = 100, maxBullets = 100;
+let comboCount = 1, comboTimer = 0;
+let timeLeft = 300; // 5分钟
+let lastTime = 0;
+let ultCD = 0, ultMaxCD = 15;
+let score = 0;
+
+// ─── 英雄配置 ───
+const HEROES = [
+  { name:'后羿', color:'#ffd700', bulletColor:'#ffd700', bulletSize:5,
+    spread:0, count:1, damage:1.5, speed:1.2, special:'暴击率30%' },
+  { name:'妲己', color:'#ff00ff', bulletColor:'#ff44ff', bulletSize:10,
+    spread:0.4, count:3, damage:0.8, speed:0.8, special:'AOE溅射' },
+  { name:'诸葛亮', color:'#00d4ff', bulletColor:'#00d4ff', bulletSize:6,
+    spread:0.25, count:5, damage:0.7, speed:1.0, special:'穿透5目标' },
+];
+let heroIdx = 0;
+let hero = HEROES[0];
+
+// ─── 野怪配置 ───
+const ENEMY_TYPES = [
+  { name:'蛮兵',  hp:3,  speed:1.2, size:14, color:'#cc4444', mult:1,  score:5  },
+  { name:'蜥蜴人',hp:8,  speed:0.8, size:20, color:'#cc7722', mult:4,  score:15 },
+  { name:'猛犸',  hp:20, speed:0.4, size:30, color:'#884488', mult:10, score:40 },
+  { name:'黄金',  hp:5,  speed:1.5, size:16, color:'#ffd700', mult:50, score:200, golden:true },
+];
+const BOSS_TYPE = { name:'远古巨龙', hp:200, speed:0.15, size:55,
+  color:'#ff2244', mult:500, score:1000, isBoss:true };
+
+// ─── 实体数组 ───
+let enemies = [], bullets_arr = [], particles = [], floatTexts = [];
+let bots = [
+  { name:'峡谷猎手', coins:0, color:'#ff6644' },
+  { name:'暗夜刺客', coins:0, color:'#44aaff' },
+  { name:'战场猛虎', coins:0, color:'#44ff88' },
+];
+
+// ─── 鼠标 ───
+let mx = W/2, my = H/2;
+C.addEventListener('mousemove', e=>{
+  const r = C.getBoundingClientRect();
+  mx = (e.clientX - r.left) * (W/r.width);
+  my = (e.clientY - r.top) * (H/r.height);
+});
+C.addEventListener('click', e=>{
+  if(state !== 'playing') return;
+  const r = C.getBoundingClientRect();
+  const cx = (e.clientX-r.left)*(W/r.width);
+  const cy = (e.clientY-r.top)*(H/r.height);
+  shoot(cx, cy);
+});
+
+// ─── 触屏 ───
+C.addEventListener('touchend', e=>{
+  if(state !== 'playing') return;
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  const r = C.getBoundingClientRect();
+  const cx = (t.clientX-r.left)*(W/r.width);
+  const cy = (t.clientY-r.top)*(H/r.height);
+  shoot(cx, cy);
+},{passive:false});
+
+// ─── 射击 ───
+function shoot(tx, ty){
+  if(bullets <= 0) return;
+  bullets--;
+  document.getElementById('bullets').textContent = bullets;
+  const base = Math.atan2(ty - H*0.75, tx - W/2);
+  for(let i=0; i<hero.count; i++){
+    const ang = base + (i-(hero.count-1)/2)*hero.spread;
+    const spd = (400 + Math.random()*80) * hero.speed;
+    const isCrit = hero.name==='后羿' && Math.random()<0.3;
+    bullets_arr.push({
+      x: W/2, y: H*0.75,
+      vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd,
+      size: hero.bulletSize * (isCrit?1.5:1),
+      color: isCrit ? '#fff' : hero.bulletColor,
+      dmg: hero.damage * (isCrit?3:1) * comboCount,
+      pierce: hero.name==='诸葛亮' ? 5 : 1,
+      pierced: 0, crit: isCrit,
+      life: 1.5
+    });
+    // 射击特效
+    spawnParticles(W/2, H*0.75, hero.bulletColor, 4);
+  }
+}
+
+// ─── 大招 ───
+function useUlt(){
+  if(state!=='playing' || ultCD > 0) return;
+  ultCD = ultMaxCD;
+  // 全屏AOE
+  enemies.forEach(e=>{
+    const dmg = 50 * comboCount;
+    e.hp -= dmg;
+    spawnParticles(e.x, e.y, '#ff6600', 8);
+    addFloat(e.x, e.y-20, '-'+Math.round(dmg), '#ff6600');
+  });
+  // 爆炸特效
+  for(let i=0;i<60;i++){
+    const ang = Math.random()*Math.PI*2;
+    const spd = 50+Math.random()*300;
+    particles.push({
+      x:W/2,y:H/2,
+      vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd,
+      size:3+Math.random()*4, color:'#ff6600',
+      life:1, maxLife:1
+    });
+  }
+  checkKills();
+}
+
+// ─── 粒子 ───
+function spawnParticles(x,y,color,n){
+  for(let i=0;i<n;i++){
+    const ang = Math.random()*Math.PI*2;
+    const spd = 40+Math.random()*120;
+    particles.push({x,y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
+      size:2+Math.random()*3,color,life:0.6,maxLife:0.6});
+  }
+}
+
+// ─── 浮动文字 ───
+function addFloat(x,y,text,color){
+  floatTexts.push({x,y,text,color,life:1.2,maxLife:1.2,vy:-60});
+}
+
+// ─── 刷怪 ───
+let spawnTimer = 0, spawnInterval = 2.0, waveNum = 0;
+function spawnEnemy(){
+  const elapsed = 300 - timeLeft;
+  // 难度递增
+  spawnInterval = Math.max(0.5, 2.0 - elapsed*0.003);
+  const side = Math.random()<0.5 ? -1 : 1;
+  const lane = [H*0.3, H*0.5, H*0.7][Math.floor(Math.random()*3)];
+  // 权重选怪
+  let type;
+  const r = Math.random();
+  if(elapsed > 180 && r < 0.04) type = ENEMY_TYPES[3]; // 黄金
+  else if(elapsed > 60 && r < 0.15) type = ENEMY_TYPES[2];
+  else if(elapsed > 30 && r < 0.35) type = ENEMY_TYPES[1];
+  else type = ENEMY_TYPES[0];
+  // BOSS登场
+  if(elapsed >= 270 && !window.bossSpawned){
+    window.bossSpawned = true;
+    enemies.push({...BOSS_TYPE, x:side>0?-60:W+60, y:H*0.5,
+      maxHp:BOSS_TYPE.hp, hp:BOSS_TYPE.hp, id:Math.random()});
+    addFloat(W/2, H*0.4, '⚠ 远古巨龙登场！', '#ff2244');
+    return;
+  }
+  enemies.push({...type, x:side>0?-type.size:W+type.size, y:lane,
+    maxHp:type.hp*(1+elapsed*0.005), hp:type.hp*(1+elapsed*0.005), id:Math.random()});
+}
+
+// ─── 击杀检测 ───
+function checkKills(){
+  enemies = enemies.filter(e=>{
+    if(e.hp > 0) return true;
+    // 击杀
+    const reward = Math.round(e.mult * 10 * comboCount);
+    coins += reward;
+    document.getElementById('coins').textContent = coins;
+    // Bot也抢一些
+    bots[Math.floor(Math.random()*bots.length)].coins += Math.round(reward * (0.1+Math.random()*0.3));
+    updateRanking();
+    spawnParticles(e.x, e.y, e.color, e.isBoss?30:12);
+    addFloat(e.x, e.y-25, (e.golden||e.isBoss?'🎯 ':'')+(e.mult>1?e.mult+'x ':'')+'+'+(reward), 
+      e.golden?'#ffd700':e.isBoss?'#ff2244':'#00ff88');
+    // 连杀
+    comboCount = Math.min(comboCount+0.5, 8);
+    comboTimer = 2.5;
+    document.getElementById('comboVal').textContent = '×'+comboCount.toFixed(1);
+    showCombo(comboCount);
+    score += e.score;
+    return false;
+  });
+}
+
+function showCombo(c){
+  if(c < 2) return;
+  const el = document.getElementById('combo');
+  el.textContent = c>=5 ? '🔥 FEVER ×'+c.toFixed(1) : '⚡ ×'+c.toFixed(1)+' 连杀';
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>el.style.opacity='0', 1500);
+}
+
+// ─── 排行榜 ───
+function updateRanking(){
+  const all = [{name:'你', coins, color:'#00ff88'}, ...bots];
+  all.sort((a,b)=>b.coins-a.coins);
+  const html = all.map((p,i)=>
+    `<div class="rank-item">
+      <span style="color:${i===0?'#ffd700':p.color}">${i+1}. ${p.name}</span>
+      <span style="color:#ffd700">${p.coins}</span>
+    </div>`
+  ).join('');
+  document.getElementById('rankList').innerHTML = html;
+}
+
+// ─── Bot模拟 ───
+let botTimer = 0;
+function updateBots(dt){
+  botTimer += dt;
+  if(botTimer < 1) return;
+  botTimer = 0;
+  // Bot每秒随机获得一些币
+  bots.forEach(b=>{
+    b.coins += Math.round(10+Math.random()*30);
+  });
+  updateRanking();
+}
+
+// ─── 选英雄 ───
+function selectHero(idx){
+  heroIdx = idx;
+  hero = HEROES[idx];
+  document.getElementById('heroName').textContent = hero.name;
+  document.getElementById('heroName').style.color = hero.color;
+  ['hero1','hero2','hero3'].forEach((id,i)=>{
+    document.getElementById(id).className = 'skill-btn' + (i===idx?' active':'');
+  });
+}
+
+// ─── 主循环 ───
+function update(ts){
+  const dt = Math.min((ts - lastTime)/1000, 0.05);
+  lastTime = ts;
+  if(state !== 'playing'){ draw(); requestAnimationFrame(update); return; }
+
+  // 计时
+  timeLeft -= dt;
+  if(timeLeft <= 0){ timeLeft=0; endGame(); return; }
+  const m = Math.floor(timeLeft/60), s = Math.floor(timeLeft%60);
+  document.getElementById('timer').textContent =
+    String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+
+  // 大招CD
+  if(ultCD > 0){
+    ultCD -= dt;
+    const cdEl = document.getElementById('ultCD');
+    if(ultCD <= 0){ ultCD=0; cdEl.style.display='none'; }
+    else{ cdEl.style.display='flex'; cdEl.textContent=Math.ceil(ultCD); }
+  }
+
+  // 连杀衰减
+  if(comboTimer > 0){
+    comboTimer -= dt;
+    if(comboTimer <= 0){ comboCount=1; document.getElementById('comboVal').textContent='×1'; }
+  }
+
+  // Bot
+  updateBots(dt);
+
+  // 刷怪
+  spawnTimer += dt;
+  if(spawnTimer >= spawnInterval){ spawnTimer=0; spawnEnemy(); }
+
+  // 移动野怪
+  enemies.forEach(e=>{
+    e.x += e.speed * (e.x < W/2 ? 1 : -1) * 60 * dt;
+    // 波动
+    e.y += Math.sin(Date.now()*0.002 + e.id*10) * 30 * dt;
+  });
+  // 移除离屏野怪
+  enemies = enemies.filter(e=> e.x > -100 && e.x < W+100);
+
+  // 移动子弹
+  bullets_arr.forEach(b=>{
+    b.x += b.vx*dt; b.y += b.vy*dt; b.life -= dt;
+  });
+  // 碰撞
+  bullets_arr.forEach(b=>{
+    if(b.life<=0) return;
+    enemies.forEach(e=>{
+      if(b.pierced >= b.pierce) return;
+      const dx=b.x-e.x, dy=b.y-e.y;
+      if(Math.sqrt(dx*dx+dy*dy) < b.size+e.size){
+        e.hp -= b.dmg;
+        b.pierced++;
+        if(b.pierced>=b.pierce) b.life=-1;
+        spawnParticles(e.x+dx*0.3, e.y+dy*0.3, b.color, 3);
+        addFloat(e.x, e.y-e.size-5, '-'+Math.round(b.dmg), b.crit?'#fff':'#ff8844');
+      }
+    });
+  });
+  bullets_arr = bullets_arr.filter(b=>b.life>0 && b.x>-50 && b.x<W+50 && b.y>-50 && b.y<H+50);
+  checkKills();
+
+  // 粒子
+  particles.forEach(p=>{ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=60*dt; p.life-=dt; });
+  particles = particles.filter(p=>p.life>0);
+
+  // 浮动文字
+  floatTexts.forEach(f=>{ f.y+=f.vy*dt; f.life-=dt; });
+  floatTexts = floatTexts.filter(f=>f.life>0);
+
+  draw();
+  requestAnimationFrame(update);
+}
+
+// ─── 绘制 ───
+function draw(){
+  g.clearRect(0,0,W,H);
+
+  // 背景
+  g.fillStyle='#0a0a0f'; g.fillRect(0,0,W,H);
+
+  // 网格
+  g.strokeStyle='rgba(0,212,255,0.04)'; g.lineWidth=1;
+  for(let x=0;x<W;x+=50){ g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke(); }
+  for(let y=0;y<H;y+=50){ g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke(); }
+
+  // 泳道
+  [0.3,0.5,0.7].forEach(ratio=>{
+    const y = H*ratio;
+    g.strokeStyle='rgba(0,212,255,0.08)'; g.lineWidth=1;
+    g.setLineDash([8,8]); g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke();
+    g.setLineDash([]);
+  });
+
+  if(state === 'menu'){
+    drawMenu(); return;
+  }
+
+  // 炮台底座
+  const tx=W/2, ty=H*0.75;
+  g.save();
+  g.shadowColor=hero.color; g.shadowBlur=20;
+  g.fillStyle=hero.color+'44';
+  g.beginPath(); g.arc(tx,ty,25,0,Math.PI*2); g.fill();
+  g.strokeStyle=hero.color; g.lineWidth=2;
+  g.beginPath(); g.arc(tx,ty,25,0,Math.PI*2); g.stroke();
+  g.restore();
+  // 炮管
+  const ang = Math.atan2(my-ty, mx-tx);
+  g.save();
+  g.translate(tx,ty); g.rotate(ang);
+  g.fillStyle=hero.color;
+  g.fillRect(0,-4,35,8);
+  g.restore();
+  // 英雄emoji
+  g.font='1.2rem serif'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(heroIdx===0?'🏹':heroIdx===1?'⭐':'📖', tx, ty);
+
+  // 野怪
+  enemies.forEach(e=>{
+    g.save();
+    g.shadowColor=e.color; g.shadowBlur=e.isBoss?20:8;
+    // 本体
+    if(e.isBoss){
+      g.fillStyle=e.color+'88';
+      g.strokeStyle=e.color; g.lineWidth=3;
+      // 六边形BOSS
+      g.beginPath();
+      for(let i=0;i<6;i++){
+        const a=Math.PI/3*i + Date.now()*0.001;
+        i===0 ? g.moveTo(e.x+e.size*Math.cos(a), e.y+e.size*Math.sin(a))
+               : g.lineTo(e.x+e.size*Math.cos(a), e.y+e.size*Math.sin(a));
+      }
+      g.closePath(); g.fill(); g.stroke();
+      // BOSS emoji
+      g.font='1.8rem serif'; g.textAlign='center'; g.textBaseline='middle';
+      g.fillText('🐉', e.x, e.y);
+    } else if(e.golden){
+      // 黄金菱形
+      g.fillStyle='#ffd700cc'; g.strokeStyle='#ffd700'; g.lineWidth=2;
+      g.save(); g.translate(e.x,e.y); g.rotate(Date.now()*0.003);
+      g.beginPath(); g.moveTo(0,-e.size); g.lineTo(e.size,0); g.lineTo(0,e.size); g.lineTo(-e.size,0);
+      g.closePath(); g.fill(); g.stroke(); g.restore();
+    } else {
+      // 普通三角
+      g.fillStyle=e.color+'cc'; g.strokeStyle=e.color; g.lineWidth=1.5;
+      const dir = e.x < W/2 ? 1 : -1;
+      g.beginPath();
+      g.moveTo(e.x+e.size*dir, e.y);
+      g.lineTo(e.x-e.size*dir*0.5, e.y-e.size*0.8);
+      g.lineTo(e.x-e.size*dir*0.5, e.y+e.size*0.8);
+      g.closePath(); g.fill(); g.stroke();
+    }
+    // 血条
+    const bw=e.size*2, bh=4, bx=e.x-bw/2, by=e.y-e.size-10;
+    g.fillStyle='#1a1a2e'; g.fillRect(bx,by,bw,bh);
+    const pct=e.hp/e.maxHp;
+    g.fillStyle=pct>0.5?'#00ff88':pct>0.25?'#ffd700':'#ff2244';
+    g.fillRect(bx,by,bw*pct,bh);
+    // 倍率
+    if(e.mult > 1){
+      g.font=`bold ${e.isBoss?'.9':'0.65'}rem sans-serif`;
+      g.fillStyle=e.golden?'#ffd700':e.isBoss?'#ff2244':'#fff';
+      g.textAlign='center'; g.textBaseline='middle';
+      g.fillText(e.mult+'x', e.x, by-6);
+    }
+    g.restore();
+  });
+
+  // 子弹
+  bullets_arr.forEach(b=>{
+    g.save();
+    g.shadowColor=b.color; g.shadowBlur=b.crit?15:6;
+    g.fillStyle=b.color;
+    g.beginPath(); g.arc(b.x,b.y,b.size,0,Math.PI*2); g.fill();
+    g.restore();
+  });
+
+  // 粒子
+  particles.forEach(p=>{
+    const a=p.life/p.maxLife;
+    g.globalAlpha=a;
+    g.fillStyle=p.color;
+    g.beginPath(); g.arc(p.x,p.y,p.size*a,0,Math.PI*2); g.fill();
+    g.globalAlpha=1;
+  });
+
+  // 浮动文字
+  floatTexts.forEach(f=>{
+    const a=Math.min(1,f.life/f.maxLife*2);
+    g.globalAlpha=a;
+    g.font=`bold .85rem sans-serif`;
+    g.fillStyle=f.color;
+    g.textAlign='center'; g.textBaseline='middle';
+    g.fillText(f.text, f.x, f.y);
+    g.globalAlpha=1;
+  });
+
+  // 子弹不足提示
+  if(bullets <= 10){
+    g.font='bold .8rem sans-serif'; g.fillStyle='#ff4444';
+    g.textAlign='center'; g.textBaseline='middle';
+    g.fillText('⚠ 子弹不足 '+(bullets<=0?'— 已用尽':''), W/2, H*0.75+50);
+  }
+
+  // 准星
+  g.strokeStyle='rgba(255,255,255,.4)'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(mx-10,my); g.lineTo(mx+10,my); g.stroke();
+  g.beginPath(); g.moveTo(mx,my-10); g.lineTo(mx,my+10); g.stroke();
+  g.beginPath(); g.arc(mx,my,5,0,Math.PI*2); g.stroke();
+}
+
+function drawMenu(){
+  g.fillStyle='rgba(10,10,15,.9)'; g.fillRect(0,0,W,H);
+  // 标题
+  g.save();
+  g.shadowColor='#00ff88'; g.shadowBlur=30;
+  g.font=`bold ${W*0.07}px sans-serif`;
+  g.fillStyle='#00ff88'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText('峡谷猎场', W/2, H*0.3);
+  g.restore();
+  g.font=`${W*0.025}px sans-serif`;
+  g.fillStyle='#8892a4'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText('CANYON HUNT · 试玩 Demo', W/2, H*0.3+W*0.06);
+  // 说明
+  g.font=`${W*0.02}px sans-serif`;
+  g.fillStyle='#b0b8c8';
+  ['点击/触屏 瞄准野怪射击','击杀获得战魂币，抢最后一击独吞全额','联合击杀BOSS（4:30登场）瓜分巨奖','底部切换英雄，大招按钮清屏'].forEach((t,i)=>{
+    g.fillText(t, W/2, H*0.5+i*W*0.028);
+  });
+  // 开始按钮
+  const bx=W/2-80, by=H*0.72, bw=160, bh=44;
+  const gr=g.createLinearGradient(bx,by,bx+bw,by);
+  gr.addColorStop(0,'rgba(0,255,136,.2)'); gr.addColorStop(1,'rgba(0,212,255,.2)');
+  g.fillStyle=gr; g.fillRect(bx,by,bw,bh);
+  g.strokeStyle='#00ff88'; g.lineWidth=1.5; g.strokeRect(bx,by,bw,bh);
+  g.font=`bold ${W*0.022}px sans-serif`;
+  g.fillStyle='#00ff88'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText('▶  开始试玩', W/2, by+bh/2);
+  // 监听点击
+  C._menuClick = e=>{
+    const r=C.getBoundingClientRect();
+    const cx=(e.clientX-r.left)*(W/r.width);
+    const cy=(e.clientY-r.top)*(H/r.height);
+    if(cx>bx&&cx<bx+bw&&cy>by&&cy<by+bh){ startGame(); }
+  };
+}
+
+// ─── 点击事件路由 ───
+C.addEventListener('click', e=>{
+  if(state==='menu' && C._menuClick){ C._menuClick(e); return; }
+});
+C.addEventListener('touchend', e=>{
+  if(state==='menu'){
+    e.preventDefault();
+    const t=e.changedTouches[0];
+    C._menuClick && C._menuClick({clientX:t.clientX,clientY:t.clientY});
+  }
+},{passive:false});
+
+function startGame(){
+  state='playing';
+  coins=0; bullets=maxBullets; comboCount=1; comboTimer=0;
+  timeLeft=300; spawnTimer=0; spawnInterval=2; waveNum=0;
+  ultCD=0; enemies=[]; bullets_arr=[]; particles=[]; floatTexts=[];
+  window.bossSpawned=false;
+  bots.forEach(b=>b.coins=0);
+  document.getElementById('coins').textContent='0';
+  document.getElementById('bullets').textContent=maxBullets;
+  document.getElementById('comboVal').textContent='×1';
+  document.getElementById('msg').style.display='none';
+  updateRanking();
+}
+
+function endGame(){
+  state='over';
+  const all=[{name:'你',coins,color:'#00ff88'},...bots].sort((a,b)=>b.coins-a.coins);
+  const rank=all.findIndex(p=>p.name==='你')+1;
+  const rankStr=['🥇 第1名！','🥈 第2名','🥉 第3名','第4名'][rank-1];
+  document.getElementById('msg').style.display='block';
+  document.getElementById('msg').innerHTML=`
+    <h2>${rankStr}</h2>
+    <p>战魂币：<strong style="color:#ffd700">${coins}</strong> &nbsp;|&nbsp; 得分：<strong style="color:#00ff88">${score}</strong></p>
+    <p style="margin-bottom:.5rem">排行：你 ${coins} / ${bots.map(b=>b.name+' '+b.coins).join(' / ')}</p>
+    <button onclick="startGame()">再来一局</button>
+  `;
+}
+
+requestAnimationFrame(update);
+</script>
+</body>
+</html>

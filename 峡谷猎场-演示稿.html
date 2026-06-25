@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>峡谷猎场 · 玩法概念案</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0f;--text:#e0e0e0;--green:#00ff88;--pink:#ff00ff;--cyan:#00d4ff;
+  --dim:#1a1a2e;--dim2:#16213e;--gold:#ffd700;
+}
+body{background:var(--bg);color:var(--text);font-family:'PingFang SC','Microsoft YaHei',sans-serif;
+  overflow:hidden;height:100vh;width:100vw}
+
+/* ── 扫描线叠层 ── */
+body::before{content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,136,0.015) 2px,rgba(0,255,136,0.015) 4px);
+  pointer-events:none;z-index:9999}
+
+/* ── 幻灯片容器 ── */
+.deck{width:100vw;height:100vh;position:relative}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;
+  opacity:0;pointer-events:none;transition:opacity .4s ease}
+.slide.active{opacity:1;pointer-events:auto}
+
+/* ── 网格背景 ── */
+.grid-bg{position:absolute;inset:0;
+  background-image:linear-gradient(rgba(0,212,255,.07) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,212,255,.07) 1px,transparent 1px);
+  background-size:60px 60px;pointer-events:none}
+
+/* ── 霓虹线条 ── */
+.neon-line{height:2px;background:linear-gradient(90deg,transparent,var(--green),var(--cyan),transparent);
+  box-shadow:0 0 8px var(--green)}
+.neon-line-pink{height:2px;background:linear-gradient(90deg,transparent,var(--pink),var(--cyan),transparent);
+  box-shadow:0 0 8px var(--pink)}
+
+/* ── 通用文字 ── */
+.title-xl{font-size:clamp(2.5rem,6vw,5rem);font-weight:900;letter-spacing:.08em;
+  text-shadow:0 0 30px currentColor}
+.title-lg{font-size:clamp(1.8rem,4vw,3rem);font-weight:800;letter-spacing:.05em}
+.title-md{font-size:clamp(1.2rem,2.5vw,2rem);font-weight:700}
+.title-sm{font-size:clamp(1rem,1.8vw,1.4rem);font-weight:600}
+.body-text{font-size:clamp(.85rem,1.4vw,1.1rem);line-height:1.8;color:#b0b8c8}
+.tag{display:inline-block;padding:.2em .7em;border-radius:2px;font-size:.8rem;
+  font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.tag-green{background:rgba(0,255,136,.15);color:var(--green);border:1px solid var(--green)}
+.tag-pink{background:rgba(255,0,255,.15);color:var(--pink);border:1px solid var(--pink)}
+.tag-cyan{background:rgba(0,212,255,.15);color:var(--cyan);border:1px solid var(--cyan)}
+.tag-gold{background:rgba(255,215,0,.15);color:var(--gold);border:1px solid var(--gold)}
+
+/* ── 卡片 ── */
+.card{background:rgba(26,26,46,.8);border:1px solid rgba(0,212,255,.2);
+  border-radius:4px;padding:1.5rem;backdrop-filter:blur(4px);
+  transition:border-color .3s,box-shadow .3s}
+.card:hover{border-color:var(--cyan);box-shadow:0 0 20px rgba(0,212,255,.2)}
+.card-green{border-color:rgba(0,255,136,.3)}
+.card-green:hover{border-color:var(--green);box-shadow:0 0 20px rgba(0,255,136,.2)}
+.card-pink{border-color:rgba(255,0,255,.3)}
+
+/* ── 布局工具 ── */
+.center{display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center}
+.pad{padding:4vh 6vw}
+.gap-sm{gap:1rem}.gap-md{gap:1.5rem}.gap-lg{gap:2rem}
+.grid2{display:grid;grid-template-columns:1fr 1fr}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr)}
+.flex-row{display:flex;flex-direction:row}
+.flex-col{display:flex;flex-direction:column}
+
+/* ── 进度条 ── */
+.progress{position:fixed;bottom:0;left:0;height:3px;background:var(--green);
+  box-shadow:0 0 8px var(--green);transition:width .4s ease;z-index:1000}
+
+/* ── 翻页按钮 ── */
+.nav{position:fixed;bottom:2rem;right:2rem;display:flex;gap:.8rem;z-index:1000}
+.nav-btn{width:2.5rem;height:2.5rem;border:1px solid var(--cyan);background:rgba(0,212,255,.1);
+  color:var(--cyan);cursor:pointer;font-size:1.1rem;border-radius:2px;
+  transition:all .2s;display:flex;align-items:center;justify-content:center}
+.nav-btn:hover{background:rgba(0,212,255,.3);box-shadow:0 0 12px rgba(0,212,255,.4)}
+
+/* ── 页码 ── */
+.page-num{position:fixed;bottom:2.2rem;left:2rem;font-size:.8rem;color:#555;
+  font-family:monospace;z-index:1000}
+
+/* ── 页面1: 封面 ── */
+#s1{background:radial-gradient(ellipse at 30% 50%,rgba(0,255,136,.08) 0%,transparent 60%),
+    radial-gradient(ellipse at 70% 50%,rgba(255,0,255,.06) 0%,transparent 60%),var(--bg)}
+
+/* ── 页面2: 章节分隔 ── */
+#s2{background:linear-gradient(135deg,rgba(0,255,136,.05) 0%,transparent 50%,rgba(0,212,255,.05) 100%),var(--bg)}
+
+/* ── 数据高亮 ── */
+.data-big{font-size:clamp(2rem,5vw,4rem);font-weight:900;line-height:1}
+.data-label{font-size:.85rem;color:#6a7490;margin-top:.3rem;letter-spacing:.05em}
+
+/* ── 时间轴 ── */
+.timeline{position:relative;padding-left:2rem}
+.timeline::before{content:'';position:absolute;left:.6rem;top:0;bottom:0;
+  width:2px;background:linear-gradient(var(--green),var(--cyan),var(--pink))}
+.tl-item{position:relative;margin-bottom:1.2rem}
+.tl-item::before{content:'';position:absolute;left:-1.55rem;top:.35rem;
+  width:10px;height:10px;border-radius:50%;background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan)}
+.tl-item:last-child{margin-bottom:0}
+
+/* ── 对比表 ── */
+.compare-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;
+  background:rgba(0,212,255,.1);border-radius:4px;overflow:hidden}
+.compare-cell{background:var(--dim);padding:1rem;text-align:center}
+.compare-cell.header{background:rgba(0,212,255,.15);font-weight:700;font-size:.9rem}
+
+/* ── 付费模型条 ── */
+.pay-bar{height:8px;border-radius:4px;margin-top:.5rem}
+
+/* ── 角落装饰 ── */
+.corner-tl,.corner-br{position:absolute;width:40px;height:40px}
+.corner-tl{top:1.5rem;left:1.5rem;border-top:2px solid var(--green);border-left:2px solid var(--green)}
+.corner-br{bottom:1.5rem;right:1.5rem;border-bottom:2px solid var(--pink);border-right:2px solid var(--pink)}
+
+/* ── 图标圆 ── */
+.icon-circle{width:3rem;height:3rem;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:1.4rem;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+<!-- ══════════════ 第1页：封面 ══════════════ -->
+<div class="slide active center" id="s1">
+  <div class="grid-bg"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <!-- 顶部标签 -->
+  <div style="position:absolute;top:2.5rem;right:2rem">
+    <span class="tag tag-green">CONCEPT · 2026.06</span>
+  </div>
+  <!-- 主体 -->
+  <div class="flex-col center gap-md" style="max-width:900px">
+    <span class="tag tag-cyan" style="letter-spacing:.3em">王者荣耀 · 娱乐玩法概念案</span>
+    <div class="neon-line" style="width:200px;margin:.5rem 0"></div>
+    <h1 class="title-xl" style="color:var(--green);line-height:1.1">峡谷猎场</h1>
+    <p class="title-md" style="color:#8892a4;font-weight:400;letter-spacing:.15em">CANYON HUNT</p>
+    <div class="neon-line-pink" style="width:120px;margin:.5rem 0"></div>
+    <p class="title-sm" style="color:#b0b8c8;max-width:600px;line-height:1.8">
+      英雄化身炮台 · 猎杀峡谷野怪<br>
+      <span style="color:var(--cyan)">抢最后一击独吞奖励</span>，联合击杀BOSS瓜分巨奖
+    </p>
+    <div class="flex-row gap-sm" style="margin-top:1rem;flex-wrap:wrap;justify-content:center">
+      <span class="tag tag-green">零门槛上手</span>
+      <span class="tag tag-pink">4人同屏竞技</span>
+      <span class="tag tag-cyan">5分钟极短局</span>
+      <span class="tag tag-gold">局外养成深度</span>
+    </div>
+  </div>
+  <!-- 底部装饰 -->
+  <div style="position:absolute;bottom:3rem;font-size:.75rem;color:#3a4060;letter-spacing:.2em">
+    HONOR OF KINGS × FISHING MECHANIC × PVP COMPETITION
+  </div>
+</div>
+
+<!-- ══════════════ 第2页：背景洞察 ══════════════ -->
+<div class="slide" id="s2">
+  <div class="grid-bg"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <div class="pad flex-col gap-lg" style="height:100%;justify-content:center">
+    <div>
+      <span class="tag tag-green" style="margin-bottom:1rem;display:inline-block">01 · 背景洞察</span>
+      <div class="neon-line" style="width:100%;margin:.8rem 0 1.5rem"></div>
+      <h2 class="title-lg" style="color:var(--text)">海外玩家为什么不玩MOBA？</h2>
+    </div>
+    <div class="grid2 gap-md">
+      <!-- 左：痛点 -->
+      <div class="flex-col gap-sm">
+        <p class="title-sm" style="color:var(--pink);margin-bottom:.5rem">⚡ 核心痛点</p>
+        <div class="card card-pink flex-row gap-sm" style="align-items:flex-start">
+          <div class="icon-circle" style="background:rgba(255,0,255,.15);color:var(--pink)">🧠</div>
+          <div>
+            <p class="title-sm" style="color:var(--text)">学习曲线陡峭</p>
+            <p class="body-text" style="font-size:.85rem">补刀 / 视野 / 装备树 / 阵容克制，新手需要100+小时才能"入门"</p>
+          </div>
+        </div>
+        <div class="card card-pink flex-row gap-sm" style="align-items:flex-start">
+          <div class="icon-circle" style="background:rgba(255,0,255,.15);color:var(--pink)">😤</div>
+          <div>
+            <p class="title-sm" style="color:var(--text)">负体验密集</p>
+            <p class="body-text" style="font-size:.85rem">队友坑 / 输出压力 / 语言障碍 / 单局25分钟时间成本过高</p>
+          </div>
+        </div>
+        <div class="card card-pink flex-row gap-sm" style="align-items:flex-start">
+          <div class="icon-circle" style="background:rgba(255,0,255,.15);color:var(--pink)">📉</div>
+          <div>
+            <p class="title-sm" style="color:var(--text)">海外泛用户流失快</p>
+            <p class="body-text" style="font-size:.85rem">东南亚/拉美市场：Free Fire/Clash Royale的用户画像与MOBA重合度低</p>
+          </div>
+        </div>
+      </div>
+      <!-- 右：机会 -->
+      <div class="flex-col gap-sm">
+        <p class="title-sm" style="color:var(--green);margin-bottom:.5rem">✅ 市场机会</p>
+        <div class="card card-green">
+          <div class="data-big" style="color:var(--green)">2.8亿</div>
+          <div class="data-label">Free Fire 2025年下载量</div>
+          <p class="body-text" style="font-size:.82rem;margin-top:.8rem">证明海外玩家爱「短局竞技」，但不爱MOBA复杂度</p>
+        </div>
+        <div class="card card-green">
+          <div class="data-big" style="color:var(--cyan)">189%</div>
+          <div class="data-label">休闲Match类游戏同比增长</div>
+          <p class="body-text" style="font-size:.82rem;margin-top:.8rem">零操作门槛的射击/匹配类游戏在海外爆发式增长</p>
+        </div>
+      </div>
+    </div>
+    <div class="neon-line-pink" style="width:100%"></div>
+    <p class="body-text" style="text-align:center;color:var(--cyan)">
+      结论：海外玩家需要的不是「更简单的MOBA」，而是<strong style="color:var(--green)">「完全不同的入场体验」</strong>
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════ 第3页：为什么是捕鱼 ══════════════ -->
+<div class="slide" id="s3">
+  <div class="grid-bg"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <div class="pad flex-col gap-lg" style="height:100%;justify-content:center">
+    <div>
+      <span class="tag tag-cyan" style="margin-bottom:1rem;display:inline-block">02 · 品类参考</span>
+      <div class="neon-line" style="width:100%;margin:.8rem 0 1.5rem"></div>
+      <h2 class="title-lg">为什么是「捕鱼玩法」？</h2>
+    </div>
+    <div class="grid3 gap-md">
+      <div class="card center gap-sm" style="padding:2rem 1.5rem">
+        <div style="font-size:2.5rem">🎯</div>
+        <p class="title-sm" style="color:var(--green)">零门槛上手</p>
+        <p class="body-text" style="font-size:.85rem;text-align:center">看到目标→点击射击<br>3秒理解全部规则<br>老人孩子无障碍</p>
+      </div>
+      <div class="card center gap-sm" style="padding:2rem 1.5rem">
+        <div style="font-size:2.5rem">⚡</div>
+        <p class="title-sm" style="color:var(--cyan)">即时爽感反馈</p>
+        <p class="body-text" style="font-size:.85rem;text-align:center">击中即有打击感<br>倍率数字飞出<br>每秒都有正反馈</p>
+      </div>
+      <div class="card center gap-sm" style="padding:2rem 1.5rem">
+        <div style="font-size:2.5rem">💰</div>
+        <p class="title-sm" style="color:var(--pink)">自然付费结构</p>
+        <p class="body-text" style="font-size:.85rem;text-align:center">投币→发射→回收<br>付费决策直觉化<br>无需理解复杂系统</p>
+      </div>
+    </div>
+    <div class="grid2 gap-md" style="margin-top:.5rem">
+      <div class="card flex-row gap-md" style="align-items:center">
+        <div class="flex-col" style="flex:1">
+          <p class="title-sm" style="color:var(--gold)">捕鱼达人 · 全球验证数据</p>
+          <p class="body-text" style="font-size:.85rem;margin-top:.5rem">2024年棋牌/捕鱼品类全球收入 <strong style="color:var(--gold)">$42亿</strong>，连续5年增长；东南亚市场渗透率极高，与王者目标市场高度重合</p>
+        </div>
+        <div class="data-big" style="color:var(--gold);flex-shrink:0">$42B</div>
+      </div>
+      <div class="card flex-row gap-md" style="align-items:center">
+        <div class="flex-col" style="flex:1">
+          <p class="title-sm" style="color:var(--green)">王者IP × 捕鱼机制</p>
+          <p class="body-text" style="font-size:.85rem;margin-top:.5rem">英雄技能即炮台形态，峡谷野怪即目标，王者世界观提供天然的视觉情感联结，老用户有认同感，新用户有新鲜感</p>
+        </div>
+        <div style="font-size:2.5rem;flex-shrink:0">🤝</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 第4页：一句话玩法 ══════════════ -->
+<div class="slide center" id="s4">
+  <div class="grid-bg"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <div class="flex-col center gap-lg" style="max-width:1000px;padding:4vh 6vw">
+    <span class="tag tag-green">03 · 核心玩法</span>
+    <h2 class="title-lg" style="color:var(--text)">一句话玩法</h2>
+    <div style="background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.3);
+      border-radius:6px;padding:2rem 3rem;max-width:800px;text-align:center">
+      <p style="font-size:clamp(1.1rem,2.5vw,1.8rem);color:var(--green);font-weight:700;line-height:1.8">
+        王者英雄化身炮台猎杀野怪<br>
+        <span style="color:var(--text)">抢</span><span style="color:var(--cyan)">最后一击</span><span style="color:var(--text)">独吞奖励</span><br>
+        <span style="color:var(--text)">联合击杀</span><span style="color:var(--pink)">BOSS</span><span style="color:var(--text)">瓜分巨奖</span>
+      </p>
+    </div>
+    <!-- 三角循环 -->
+    <div class="grid3 gap-md" style="width:100%;max-width:800px">
+      <div class="card card-green center gap-sm" style="padding:1.5rem">
+        <div style="font-size:2rem">🔫</div>
+        <p class="title-sm" style="color:var(--green)">英雄即炮台</p>
+        <p class="body-text" style="font-size:.82rem;text-align:center">技能形态即攻击方式<br>后羿精准·妲己AOE<br>诸葛穿透·孙悟空多向</p>
+      </div>
+      <div class="card card-pink center gap-sm" style="padding:1.5rem">
+        <div style="font-size:2rem">⚔️</div>
+        <p class="title-sm" style="color:var(--pink)">抢最后一击</p>
+        <p class="body-text" style="font-size:.82rem;text-align:center">最终一击独拿全额<br>助攻仅得25%<br>博弈张力极强</p>
+      </div>
+      <div class="card center gap-sm" style="padding:1.5rem;border-color:rgba(255,215,0,.3)">
+        <div style="font-size:2rem">🐉</div>
+        <p class="title-sm" style="color:var(--gold)">联合破甲BOSS</p>
+        <p class="body-text" style="font-size:.82rem;text-align:center">单人伤害-80%<br>4人同时攻击破甲<br>按贡献瓜分巨奖</p>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;justify-content:center">
+      <span class="tag tag-green">点击即玩</span>
+      <span style="color:#555">→</span>
+      <span class="tag tag-cyan">抢杀竞争</span>
+      <span style="color:#555">→</span>
+      <span class="tag tag-gold">BOSS决战</span>
+      <span style="color:#555">→</span>
+      <span class="tag tag-pink">结算奖励</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 第5页：局内核心机制 ══════════════ -->
+<div class="slide" id="s5">
+  <div class="grid-bg"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <div class="pad flex-col gap-md" style="height:100%;justify-content:center">
+    <div>
+      <span class="tag tag-pink" style="margin-bottom:1rem;display:inline-block">04 · 局内机制</span>
+      <div class="neon-line-pink" style="width:100%;margin:.8rem 0"></div>
+      <h2 class="title-lg">四大核心机制</h2>
+    </div>
+    <div class="grid2 gap-md" style="flex:1;align-content:center">
+      <div class="card card-green flex-col gap-sm">
+        <div class="flex-row gap-sm" style="align-items:center">
+          <div class="icon-circle" style="background:rgba(0,255,136,.15);color:var(--green)">🌊</div>
+          <p class="title-sm" style="color:var(--green)">三条泳道野怪</p>
+        </div>
+        <p class="body-text" style="font-size:.85rem">上/中/下三层泳道，野怪从左右两侧持续涌入。蛮兵(1-2x)→蜥蜴人(3-5x)→猛犸(8-12x)→黄金野怪(50x)，倍率与难度成正比。</p>
+        <div class="flex-row gap-sm" style="flex-wrap:wrap">
+          <span class="tag tag-green" style="font-size:.7rem">1-2x 普通</span>
+          <span class="tag tag-cyan" style="font-size:.7rem">8-12x 精英</span>
+          <span class="tag tag-gold" style="font-size:.7rem">50x 黄金</span>
+        </div>
+      </div>
+      <div class="card card-pink flex-col gap-sm">
+        <div class="flex-row gap-sm" style="align-items:center">
+          <div class="icon-circle" style="background:rgba(255,0,255,.15);color:var(--pink)">⚡</div>
+          <p class="title-sm" style="color:var(--pink)">最后一击抢杀</p>
+        </div>
+        <p class="body-text" style="font-size:.85rem">野怪血量耗尽时，打出最后一击的玩家独拿全额战魂币；其余参与者仅获25%助攻分成；未参与者0收益。制造紧张的竞争博弈。</p>
+        <div style="background:rgba(255,0,255,.08);border-radius:4px;padding:.6rem;font-size:.8rem">
+          <span style="color:var(--pink)">最后一击</span> = 100% &nbsp;|&nbsp;
+          <span style="color:#8892a4">助攻</span> = 25% &nbsp;|&nbsp;
+          <span style="color:#555">未参与</span> = 0%
+        </div>
+      </div>
+      <div class="card flex-col gap-sm" style="border-color:rgba(0,212,255,.3)">
+        <div class="flex-row gap-sm" style="align-items:center">
+          <div class="icon-circle" style="background:rgba(0,212,255,.15);color:var(--cyan)">🎭</div>
+          <p class="title-sm" style="color:var(--cyan)">干扰技能系统</p>
+        </div>
+        <p class="body-text" style="font-size:.85rem">每位英雄配备1个干扰技（CD 15s）：后羿白屏0.8s、妲己魅惑偏转方向、诸葛空城计骗取目标、铠冲阵推开炮台。制造节目效果。</p>
+        <div style="background:rgba(0,212,255,.08);border-radius:4px;padding:.6rem;font-size:.8rem;color:var(--cyan)">
+          需积累「干扰能量」才可释放，防止无限骚扰
+        </div>
+      </div>
+      <div class="card flex-col gap-sm" style="border-color:rgba(255,215,0,.3)">
+        <div class="flex-row gap-sm" style="align-items:center">
+          <div class="icon-circle" style="background:rgba(255,215,0,.15);color:var(--gold)">🐉</div>
+          <p class="title-sm" style="color:var(--gold)">联合BOSS破甲</p>
+        </div>
+        <p class="body-text" style="font-size:.85rem">BOSS拥有护甲层，单人伤害-80%。4人同时攻击触发「破甲」，进入10秒爆发期，全员伤害×3。击杀后最终一击者得50%，其余按伤害占比分配。</p>
+        <div style="background:rgba(255,215,0,.08);border-radius:4px;padding:.6rem;font-size:.8rem;color:var(--gold)">
+          BOSS每局登场3次：1:30 / 3:00 / 4:30
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 第6页：英雄炮台差异 ══════════════ -->
+<div class="slide" id="s6">
+  <div class="grid-bg"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <div class="pad flex-col gap-md" style="height:100%;justify-content:center">
+    <div>
+      <span class="tag tag-cyan" style="margin-bottom:1rem;display:inline-block">05 · 英雄差异</span>
+      <div class="neon-line" style="width:100%;margin:.8rem 0"></div>
+      <h2 class="title-lg">英雄炮台差异化设计</h2>
+    </div>
+    <!-- 对比表头 -->
+    <div class="compare-row">
+      <div class="compare-cell header" style="color:var(--cyan)">英雄</div>
+      <div class="compare-cell header" style="color:var(--green)">攻击形态</div>
+      <div class="compare-cell header" style="color:var(--pink)">核心特色</div>
+    </div>
+    <!-- 数据行 -->
+    <div class="flex-col gap-sm" style="margin-top:.5rem">
+      <div class="card flex-row gap-md" style="align-items:center;padding:1rem 1.5rem">
+        <div style="font-size:1.5rem;width:2.5rem;text-align:center">🏹</div>
+        <div style="flex:1"><p class="title-sm" style="color:var(--gold)">后羿</p></div>
+        <div style="flex:2"><p class="body-text" style="font-size:.85rem">单体高精准箭矢，攻速快，暴击率高</p></div>
+        <div style="flex:2"><p class="body-text" style="font-size:.85rem;color:var(--gold)">狙击黄金野怪首选，适合追求高倍率的玩家</p></div>
+        <span class="tag tag-gold" style="font-size:.7rem;flex-shrink:0">精准狙击</span>
+      </div>
+      <div class="card flex-row gap-md" style="align-items:center;padding:1rem 1.5rem">
+        <div style="font-size:1.5rem;width:2.5rem;text-align:center">⭐</div>
+        <div style="flex:1"><p class="title-sm" style="color:var(--pink)">妲己</p></div>
+        <div style="flex:2"><p class="body-text" style="font-size:.85rem">AOE星球爆炸，范围大，连锁溅射</p></div>
+        <div style="flex:2"><p class="body-text" style="font-size:.85rem;color:var(--pink)">清群怪效率最高，新手友好，视觉效果最华丽</p></div>
+        <span class="tag tag-pink" style="font-size:.7rem;flex-shrink:0">范围清场</span>
+      </div>
+      <div class="card flex-row gap-md" style="align-items:center;padding:1rem 1.5rem">
+        <div style="font-size:1.5rem;width:2.5rem;text-align:center">📖</div>
+        <div style="flex:1"><p class="title-sm" style="color:var(--cyan)">诸葛亮</p></div>
+        <div style="flex:2"><p class="body-text" style="font-size:.85rem">扇形弹幕穿透，同时覆盖多层泳道</p></div>
+        <div style="flex:2"><p class="body-text" style="font-size:.85rem;color:var(--cyan)">稳定中层输出，干扰技「空城计」战术价值极高</p></div>
+        <span class="tag tag-cyan" style="font-size:.7rem;flex-shrink:0">穿透连锁</span>
+      </div>
+      <div class="card flex-row gap-md" style="align-items:center;padding:1rem 1.5rem">
+        <div style="font-size:1.5rem;width:2.5rem;text-align:center">🛡️</div>
+        <div style="flex:1"><p class="title-sm" style="color:var(--green)">铠</p></div>
+        <div style="flex:2"><p class="body-text" style="font-size:.85rem">范围冲击波，附带减速效果</p></div>
+        <div style="flex:2"><p class="body-text" style="font-size:.85rem;color:var(--green)">锁定高价值野怪减速，控场型打法，BOSS战必选</p></div>
+        <span class="tag tag-green" style="font-size:.7rem;flex-shrink:0">控场锁定</span>
+      </div>
+      <div class="card flex-row gap-md" style="align-items:center;padding:1rem 1.5rem">
+        <div style="font-size:1.5rem;width:2.5rem;text-align:center">🐒</div>
+        <div style="flex:1"><p class="title-sm" style="color:var(--text)">孙悟空</p></div>
+        <div style="flex:2"><p class="body-text" style="font-size:.85rem">分身多向攻击，同时打多条泳道</p></div>
+        <div style="flex:2"><p class="body-text" style="font-size:.85rem;color:#8892a4">覆盖率最高，不擅长单点突破，适合稳定收益型玩家</p></div>
+        <span class="tag" style="font-size:.7rem;flex-shrink:0;background:rgba(255,255,255,.1);color:#ccc;border:1px solid #555">全域覆盖</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 第7页：节奏曲线 ══════════════ -->
+<div class="slide" id="s7">
+  <div class="grid-bg"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <div class="pad flex-col gap-lg" style="height:100%;justify-content:center">
+    <div>
+      <span class="tag tag-gold" style="margin-bottom:1rem;display:inline-block">06 · 局内节奏</span>
+      <div class="neon-line" style="width:100%;margin:.8rem 0"></div>
+      <h2 class="title-lg">5分钟压力曲线设计</h2>
+    </div>
+    <div class="timeline" style="flex:1;max-height:400px;overflow:hidden">
+      <div class="tl-item">
+        <div class="flex-row gap-md" style="align-items:flex-start">
+          <div style="flex-shrink:0">
+            <span class="tag tag-green" style="font-size:.75rem">0:00 - 1:00</span>
+          </div>
+          <div class="card" style="flex:1;padding:1rem">
+            <p class="title-sm" style="color:var(--green)">热身期 · 试探阶段</p>
+            <p class="body-text" style="font-size:.85rem">小怪密集，倍率低。4人各自打，互相观察对方英雄特性。新手直接上手，老玩家规划升级路线。炮台可升到1级。</p>
+          </div>
+        </div>
+      </div>
+      <div class="tl-item" style="--dot-color:var(--cyan)">
+        <div class="flex-row gap-md" style="align-items:flex-start">
+          <div style="flex-shrink:0">
+            <span class="tag tag-cyan" style="font-size:.75rem">1:00 - 2:30</span>
+          </div>
+          <div class="card" style="flex:1;padding:1rem">
+            <p class="title-sm" style="color:var(--cyan)">竞争期 · 博弈高潮</p>
+            <p class="body-text" style="font-size:.85rem">黄金野怪首次出现，引发第一波抢杀高潮。干扰技能开始大量使用，节目效果爆发。<strong style="color:var(--cyan)">第一个精英BOSS（200x）登场。</strong></p>
+          </div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="flex-row gap-md" style="align-items:flex-start">
+          <div style="flex-shrink:0">
+            <span class="tag" style="font-size:.75rem;background:rgba(255,165,0,.15);color:orange;border:1px solid orange">2:30 - 4:00</span>
+          </div>
+          <div class="card" style="flex:1;padding:1rem">
+            <p class="title-sm" style="color:orange">激烈期 · 排行分化</p>
+            <p class="body-text" style="font-size:.85rem">炮台升满3级，特效拉满，战场视觉达到顶峰。随机「黄金鱼群」事件：15秒内大量黄金野怪涌入，全员疯狂输出。<strong style="color:orange">第二个精英BOSS登场（350x）。</strong></p>
+          </div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="flex-row gap-md" style="align-items:flex-start">
+          <div style="flex-shrink:0">
+            <span class="tag tag-pink" style="font-size:.75rem">4:00 - 4:30</span>
+          </div>
+          <div class="card card-pink" style="flex:1;padding:1rem">
+            <p class="title-sm" style="color:var(--pink)">决战期 · 全员爆发</p>
+            <p class="body-text" style="font-size:.85rem">所有玩家进入「战魂爆发」状态，攻速自动+50%。全屏野怪密度达到最高。<strong style="color:var(--pink)">最终BOSS「远古巨龙」登场（1000x），需全员联合击杀。</strong></p>
+          </div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="flex-row gap-md" style="align-items:flex-start">
+          <div style="flex-shrink:0">
+            <span class="tag tag-gold" style="font-size:.75rem">5:00 结算</span>
+          </div>
+          <div class="card" style="flex:1;padding:1rem;border-color:rgba(255,215,0,.3)">
+            <p class="title-sm" style="color:var(--gold)">结算 · 排名揭晓</p>
+            <p class="body-text" style="font-size:.85rem">实时排行榜最终排名，战魂币兑换英雄皮肤/炮台外观/代币。MVP获专属击杀特效（下局生效）。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 第8页：局外养成 ══════════════ -->
+<div class="slide" id="s8">
+  <div class="grid-bg"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <div class="pad flex-col gap-md" style="height:100%;justify-content:center">
+    <div>
+      <span class="tag tag-green" style="margin-bottom:1rem;display:inline-block">07 · 局外养成</span>
+      <div class="neon-line" style="width:100%;margin:.8rem 0"></div>
+      <h2 class="title-lg">三层养成系统</h2>
+    </div>
+    <div class="grid3 gap-md" style="flex:1;align-content:center">
+      <!-- 第一层 -->
+      <div class="card card-green flex-col gap-sm" style="padding:1.8rem">
+        <div style="text-align:center;font-size:2rem;margin-bottom:.5rem">🪙</div>
+        <p class="title-sm" style="color:var(--green);text-align:center">第一层<br>代币 × 发射次数</p>
+        <div class="neon-line" style="margin:.8rem 0"></div>
+        <div class="flex-col gap-sm">
+          <div style="background:rgba(0,255,136,.08);border-radius:3px;padding:.7rem">
+            <p style="font-size:.8rem;color:var(--green);font-weight:700">普通代币（免费）</p>
+            <p style="font-size:.78rem;color:#8892a4;margin-top:.2rem">每局100发</p>
+          </div>
+          <div style="background:rgba(0,212,255,.08);border-radius:3px;padding:.7rem">
+            <p style="font-size:.8rem;color:var(--cyan);font-weight:700">精英代币</p>
+            <p style="font-size:.78rem;color:#8892a4;margin-top:.2rem">200发 + 攻击力+10%</p>
+          </div>
+          <div style="background:rgba(255,215,0,.08);border-radius:3px;padding:.7rem">
+            <p style="font-size:.8rem;color:var(--gold);font-weight:700">传说代币</p>
+            <p style="font-size:.78rem;color:#8892a4;margin-top:.2rem">400发 + 攻击+25% + 追踪弹</p>
+          </div>
+        </div>
+        <p class="body-text" style="font-size:.78rem;margin-top:.5rem;color:#555;text-align:center">每局消耗，持续复购驱动</p>
+      </div>
+      <!-- 第二层 -->
+      <div class="card flex-col gap-sm" style="padding:1.8rem;border-color:rgba(0,212,255,.3)">
+        <div style="text-align:center;font-size:2rem;margin-bottom:.5rem">⚙️</div>
+        <p class="title-sm" style="color:var(--cyan);text-align:center">第二层<br>炮台永久强化</p>
+        <div class="neon-line" style="margin:.8rem 0;background:linear-gradient(90deg,transparent,var(--cyan),transparent)"></div>
+        <div class="flex-col gap-sm">
+          <div>
+            <div class="flex-row" style="justify-content:space-between;margin-bottom:.3rem">
+              <span style="font-size:.8rem;color:var(--text)">攻击倍率</span>
+              <span style="font-size:.8rem;color:var(--cyan)">1.0x → 3.0x</span>
+            </div>
+            <div style="background:#1a1a2e;border-radius:4px;height:6px">
+              <div style="width:60%;height:100%;background:var(--cyan);border-radius:4px;box-shadow:0 0 6px var(--cyan)"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex-row" style="justify-content:space-between;margin-bottom:.3rem">
+              <span style="font-size:.8rem;color:var(--text)">攻击范围</span>
+              <span style="font-size:.8rem;color:var(--green)">标准 → 全屏穿透</span>
+            </div>
+            <div style="background:#1a1a2e;border-radius:4px;height:6px">
+              <div style="width:40%;height:100%;background:var(--green);border-radius:4px;box-shadow:0 0 6px var(--green)"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex-row" style="justify-content:space-between;margin-bottom:.3rem">
+              <span style="font-size:.8rem;color:var(--text)">发射形态</span>
+              <span style="font-size:.8rem;color:var(--pink)">单发 → 四向射击</span>
+            </div>
+            <div style="background:#1a1a2e;border-radius:4px;height:6px">
+              <div style="width:25%;height:100%;background:var(--pink);border-radius:4px;box-shadow:0 0 6px var(--pink)"></div>
+            </div>
+          </div>
+        </div>
+        <p class="body-text" style="font-size:.78rem;margin-top:.5rem;color:#555;text-align:center">长线养成，战魂币兑换永久属性</p>
+      </div>
+      <!-- 第三层 -->
+      <div class="card card-pink flex-col gap-sm" style="padding:1.8rem">
+        <div style="text-align:center;font-size:2rem;margin-bottom:.5rem">🌟</div>
+        <p class="title-sm" style="color:var(--pink);text-align:center">第三层<br>英雄收集</p>
+        <div class="neon-line-pink" style="margin:.8rem 0"></div>
+        <div class="flex-col gap-sm">
+          <div style="background:rgba(255,0,255,.08);border-radius:3px;padding:.7rem">
+            <p style="font-size:.8rem;color:var(--text);font-weight:700">基础英雄</p>
+            <p style="font-size:.78rem;color:#8892a4;margin-top:.2rem">后羿 / 妲己（免费解锁）</p>
+          </div>
+          <div style="background:rgba(0,212,255,.08);border-radius:3px;padding:.7rem">
+            <p style="font-size:.8rem;color:var(--cyan);font-weight:700">解锁英雄</p>
+            <p style="font-size:.78rem;color:#8892a4;margin-top:.2rem">战魂币兑换，炮台技能不同</p>
+          </div>
+          <div style="background:rgba(255,215,0,.08);border-radius:3px;padding:.7rem">
+            <p style="font-size:.8rem;color:var(--gold);font-weight:700">联动限定</p>
+            <p style="font-size:.78rem;color:#8892a4;margin-top:.2rem">节日/IP联动炮台皮肤</p>
+          </div>
+        </div>
+        <p class="body-text" style="font-size:.78rem;margin-top:.5rem;color:#555;text-align:center">情感收集，驱动持续回游</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 第9页：付费模型 ══════════════ -->
+<div class="slide" id="s9">
+  <div class="grid-bg"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <div class="pad flex-col gap-lg" style="height:100%;justify-content:center">
+    <div>
+      <span class="tag tag-pink" style="margin-bottom:1rem;display:inline-block">08 · 付费模型</span>
+      <div class="neon-line-pink" style="width:100%;margin:.8rem 0"></div>
+      <h2 class="title-lg">三条付费线并行</h2>
+    </div>
+    <div class="grid3 gap-md">
+      <div class="card card-green flex-col gap-md">
+        <div class="flex-row gap-sm" style="align-items:center">
+          <div class="icon-circle" style="background:rgba(0,255,136,.15);color:var(--green);font-size:1.8rem">🔄</div>
+          <div>
+            <p class="title-sm" style="color:var(--green)">消耗型</p>
+            <p style="font-size:.8rem;color:#6a7490">日常付费驱动</p>
+          </div>
+        </div>
+        <div class="pay-bar" style="background:linear-gradient(90deg,var(--green),var(--cyan));width:85%"></div>
+        <p class="body-text" style="font-size:.85rem"><strong style="color:var(--green)">代币购买</strong>——局内发射次数/初始强化加成。每局必须投入，形成持续消费循环。类比捕鱼达人的「换炮弹」逻辑，决策直觉化。</p>
+        <div style="background:rgba(0,255,136,.08);border-radius:3px;padding:.6rem;font-size:.78rem;color:#8892a4">
+          💡 免费代币兜底，付费代币提升局内竞争力，不影响正常体验
+        </div>
+      </div>
+      <div class="card flex-col gap-md" style="border-color:rgba(0,212,255,.3)">
+        <div class="flex-row gap-sm" style="align-items:center">
+          <div class="icon-circle" style="background:rgba(0,212,255,.15);color:var(--cyan);font-size:1.8rem">📈</div>
+          <div>
+            <p class="title-sm" style="color:var(--cyan)">养成型</p>
+            <p style="font-size:.8rem;color:#6a7490">长线付费驱动</p>
+          </div>
+        </div>
+        <div class="pay-bar" style="background:linear-gradient(90deg,var(--cyan),var(--pink));width:65%"></div>
+        <p class="body-text" style="font-size:.85rem"><strong style="color:var(--cyan)">炮台属性永久升级</strong>——攻击倍率/范围/发射形态三条线。用战魂币（局内获得）兑换，付费可加速养成进度，给核心玩家长期目标。</p>
+        <div style="background:rgba(0,212,255,.08);border-radius:3px;padding:.6rem;font-size:.78rem;color:#8892a4">
+          💡 肝货肝来，氪金加速，两类玩家都有空间
+        </div>
+      </div>
+      <div class="card card-pink flex-col gap-md">
+        <div class="flex-row gap-sm" style="align-items:center">
+          <div class="icon-circle" style="background:rgba(255,0,255,.15);color:var(--pink);font-size:1.8rem">💎</div>
+          <div>
+            <p class="title-sm" style="color:var(--pink)">收集型</p>
+            <p style="font-size:.8rem;color:#6a7490">情感付费驱动</p>
+          </div>
+        </div>
+        <div class="pay-bar" style="background:linear-gradient(90deg,var(--pink),var(--gold));width:50%"></div>
+        <p class="body-text" style="font-size:.85rem"><strong style="color:var(--pink)">英雄皮肤/限定炮台外观</strong>——节日限定、IP联动、赛季专属，不影响数值，纯视觉满足。最高付费天花板在此，追求稀缺感。</p>
+        <div style="background:rgba(255,0,255,.08);border-radius:3px;padding:.6rem;font-size:.78rem;color:#8892a4">
+          💡 三条线互不冲突，覆盖休闲玩家/核心玩家/收藏玩家
+        </div>
+      </div>
+    </div>
+    <div class="card flex-row gap-md" style="align-items:center;background:rgba(255,215,0,.05);border-color:rgba(255,215,0,.2)">
+      <div style="font-size:1.5rem">💡</div>
+      <p class="body-text" style="font-size:.88rem">
+        <strong style="color:var(--gold)">设计原则</strong>：所有付费都不影响「最后一击」的判定——最终击杀靠的是准确的时机把握，而非数值压制。公平竞技感保证泛用户不流失。
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 第10页：下一步 ══════════════ -->
+<div class="slide center" id="s10">
+  <div class="grid-bg"></div>
+  <div class="corner-tl"></div>
+  <div class="corner-br"></div>
+  <div style="position:absolute;top:2rem;left:50%;transform:translateX(-50%)">
+    <span class="tag tag-gold">09 · 下一步</span>
+  </div>
+  <div class="flex-col center gap-lg" style="max-width:900px;padding:6vh 6vw">
+    <h2 class="title-lg" style="color:var(--text)">建议行动路径</h2>
+    <div class="neon-line" style="width:300px"></div>
+    <div class="grid2 gap-md" style="width:100%">
+      <div class="card card-green flex-col gap-sm">
+        <div class="flex-row gap-sm" style="align-items:center">
+          <span style="font-size:1.5rem">🎮</span>
+          <p class="title-sm" style="color:var(--green)">P0 · 原型验证</p>
+        </div>
+        <p class="body-text" style="font-size:.85rem">2周内完成可玩原型：后羿+妲己两名英雄，3种野怪，最后一击抢杀机制。核心验证「抢杀博弈」爽感是否成立。</p>
+      </div>
+      <div class="card flex-col gap-sm" style="border-color:rgba(0,212,255,.3)">
+        <div class="flex-row gap-sm" style="align-items:center">
+          <span style="font-size:1.5rem">👥</span>
+          <p class="title-sm" style="color:var(--cyan)">P1 · 小规模测试</p>
+        </div>
+        <p class="body-text" style="font-size:.85rem">东南亚目标市场100人测试，重点关注：上手时间/首局留存/付费意愿/分享率四项核心指标。</p>
+      </div>
+      <div class="card card-pink flex-col gap-sm">
+        <div class="flex-row gap-sm" style="align-items:center">
+          <span style="font-size:1.5rem">⚡</span>
+          <p class="title-sm" style="color:var(--pink)">P2 · 快速迭代</p>
+        </div>
+        <p class="body-text" style="font-size:.85rem">根据测试数据调整：干扰技能强度/BOSS难度/代币定价。重点打磨「黄金鱼群」事件的传播性时刻。</p>
+      </div>
+      <div class="card flex-col gap-sm" style="border-color:rgba(255,215,0,.3)">
+        <div class="flex-row gap-sm" style="align-items:center">
+          <span style="font-size:1.5rem">🚀</span>
+          <p class="title-sm" style="color:var(--gold)">P3 · 灰度上线</p>
+        </div>
+        <p class="body-text" style="font-size:.85rem">东南亚+拉美市场灰度，5英雄+完整养成系统，配合KOL直播传播（干扰技能天然直播友好）。</p>
+      </div>
+    </div>
+    <div class="neon-line-pink" style="width:300px"></div>
+    <div style="text-align:center">
+      <p class="title-md" style="color:var(--green)">峡谷猎场</p>
+      <p class="body-text" style="margin-top:.5rem">让每一个不会玩MOBA的玩家，也能在峡谷里找到属于自己的爽感时刻</p>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- 进度条 -->
+<div class="progress" id="progress"></div>
+
+<!-- 页码 -->
+<div class="page-num" id="pageNum">01 / 10</div>
+
+<!-- 翻页按钮 -->
+<div class="nav">
+  <button class="nav-btn" id="btnPrev" onclick="go(-1)">‹</button>
+  <button class="nav-btn" id="btnNext" onclick="go(1)">›</button>
+</div>
+
+<script>
+const TOTAL = 10;
+let cur = 1;
+
+function go(dir) {
+  const next = cur + dir;
+  if (next < 1 || next > TOTAL) return;
+  document.querySelector('#s' + cur).classList.remove('active');
+  cur = next;
+  document.querySelector('#s' + cur).classList.add('active');
+  // 进度条
+  document.getElementById('progress').style.width = (cur / TOTAL * 100) + '%';
+  // 页码
+  const n = String(cur).padStart(2,'0');
+  document.getElementById('pageNum').textContent = n + ' / ' + TOTAL;
+}
+
+// 键盘
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') go(1);
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') go(-1);
+});
+
+// 触屏滑动
+let tx = 0;
+document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+});
+
+// 初始化
+document.getElementById('progress').style.width = (1 / TOTAL * 100) + '%';
+</script>
+</body>
+</html>
